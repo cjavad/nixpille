@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Flake check (runs all checks)
+        run: nix flake check
+
+  test:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Smoke test
+        run: nix build .#checks.x86_64-linux.smoke -L
+
+      - name: Check formatting
+        run: nix fmt -- --check .
+
+      - name: Check for eval warnings
+        run: |
+          output=$(nix eval .#nixosConfigurations.vm.config.system.build.toplevel 2>&1 || true)
+          if echo "$output" | grep -i "^warning:" | grep -v "Git tree"; then
+            echo "Found evaluation warnings!"
+            echo "$output"
+            exit 1
+          fi
+
+  build:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Build VM config
+        run: nix build .#nixosConfigurations.vm.config.system.build.toplevel --dry-run
+
+      - name: Build ideapad config
+        run: nix build .#nixosConfigurations.ideapad.config.system.build.toplevel --dry-run
+
+      - name: Build p1gen8 config
+        run: nix build .#nixosConfigurations.p1gen8.config.system.build.toplevel --dry-run
+
+      - name: Build GHA config
+        run: nix build .#nixosConfigurations.gha.config.system.build.toplevel --dry-run
+
+      - name: Build ISO config
+        run: nix build .#nixosConfigurations.iso.config.system.build.isoImage --dry-run

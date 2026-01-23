@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Build ISO
+        run: nix build .#nixosConfigurations.iso.config.system.build.isoImage
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=$(date +%Y.%m.%d)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ISO_PATH=$(find result/iso -name "*.iso" -type f)
+          ISO_NAME="nixpille-${{ steps.version.outputs.version }}.iso"
+          cp "$ISO_PATH" "$ISO_NAME"
+          gh release create "${{ steps.version.outputs.version }}" \
+            --title "nixpille ${{ steps.version.outputs.version }}" \
+            --generate-notes \
+            "$ISO_NAME"

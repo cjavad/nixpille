@@ -1,0 +1,158 @@
+version: '3'
+
+vars:
+  HOST:
+    sh: 'h=$(hostname); case $h in ideapad|p1gen8|vm) echo $h;; *) echo vm;; esac'
+  BW:
+    sh: 'echo "${BW:-bw}"'
+
+tasks:
+  default:
+    cmds: [task --list]
+
+  vm:
+    desc: Build and run VM
+    cmds:
+      - nix build .#nixosConfigurations.{{.HOST}}.config.system.build.vm
+      - ./result/bin/run-{{.HOST}}-vm
+
+  vm:rm:
+    desc: Remove VM disk
+    cmds: ['rm -f {{.HOST}}.qcow2']
+
+  switch:
+    desc: Switch to new config
+    cmds: ['sudo nixos-rebuild switch --flake .#{{.HOST}}']
+
+  check:
+    desc: Check flake
+    cmds: [nix flake check]
+
+  test:
+    desc: Run tests
+    cmds: [nix build .#checks.x86_64-linux.smoke -L]
+
+  fmt:
+    desc: Format nix files
+    cmds: [nix fmt .]
+
+  update:
+    desc: Update flake inputs
+    cmds: [nix flake update]
+
+  gc:
+    desc: Garbage collect
+    cmds: [sudo nix-collect-garbage -d]
+
+  clean:
+    desc: Remove build artifacts
+    cmds: ['rm -f result *.qcow2']
+
+  iso:
+    desc: Build installer ISO
+    cmds:
+      - nix build .#nixosConfigurations.iso.config.system.build.isoImage
+      - echo "ISO at ./result/iso/*.iso"
+
+  release:
+    desc: Create GitHub release
+    vars:
+      VERSION: '{{.VERSION | default (now | date "2006.01.02")}}'
+    cmds:
+      - task: iso
+      - |
+        gh release create "{{.VERSION}}" --title "nixpille {{.VERSION}}" --generate-notes \
+          "$(find result/iso -name '*.iso' -type f)"
+
+  secrets:edit:
+    desc: Edit secrets file
+    cmds: [sops ~/.config/sops/secrets.yaml]
+
+  secrets:show:
+    desc: Show decrypted secrets
+    cmds: [sops -d ~/.config/sops/secrets.yaml]
+
+  secrets:add:
+    desc: Add secret (FILE or VALUE)
+    cmds:
+      - |
+        [ -z "{{.KEY}}" ] && { echo "Usage: task secrets:add KEY=<name> FILE=<path> or VALUE=<string>"; exit 1; }
+        [ -z "{{.FILE}}" ] && [ -z "{{.VALUE}}" ] && { echo "Provide FILE or VALUE"; exit 1; }
+        TEMP=$(mktemp)
+        sops -d "$HOME/.config/sops/secrets.yaml" > "$TEMP"
+        if [ -n "{{.FILE}}" ]; then
+          [ ! -f "{{.FILE}}" ] && { echo "File not found: {{.FILE}}"; rm "$TEMP"; exit 1; }
+          yq -i '.{{.KEY}} = load_str("{{.FILE}}")' "$TEMP"
+          echo "Added {{.KEY}} from {{.FILE}}"
+        else
+          yq -i '.{{.KEY}} = "{{.VALUE}}"' "$TEMP"
+          echo "Added {{.KEY}}"
+        fi
+        sops -e "$TEMP" > "$HOME/.config/sops/secrets.yaml"
+        rm "$TEMP"
+
+  secrets:init:
+    desc: Initialize age key
+    cmds:
+      - |
+        [ -f "$HOME/.config/sops/age/keys.txt" ] && { grep "public" "$HOME/.config/sops/age/keys.txt"; exit 0; }
+        mkdir -p "$HOME/.config/sops/age"
+        age-keygen -o "$HOME/.config/sops/age/keys.txt"
+        grep "public" "$HOME/.config/sops/age/keys.txt"
+
+  secrets:login:
+    desc: Login/unlock Bitwarden
+    cmds:
+      - |
+        BW="{{.BW}}"
+        STATUS=$($BW status | jq -r '.status // "error"')
+        [ "$STATUS" = "unauthenticated" ] && $BW login
+        SESSION=$($BW unlock --raw)
+        [ -z "$SESSION" ] && { echo "Failed to get session"; exit 1; }
+        echo "$SESSION" > "$HOME/.bw-session"
+        echo "Session saved"
+
+  secrets:push:
+    desc: Push secrets to Bitwarden
+    vars: { BW_ITEM: nixpille-secrets }
+    cmds:
+      - |
+        BW="{{.BW}}"
+        [ ! -f "$HOME/.config/sops/secrets.yaml" ] && { echo "No secrets - run: task secrets:pull"; exit 1; }
+        [ ! -f "$HOME/.config/sops/age/keys.txt" ] && { echo "No age key - run: task secrets:pull"; exit 1; }
+        [ ! -f "$HOME/.bw-session" ] && { echo "Run: task secrets:login"; exit 1; }
+        export BW_SESSION=$(cat "$HOME/.bw-session")
+        [ "$($BW status | jq -r '.status')" != "unlocked" ] && { echo "Run: task secrets:login"; exit 1; }
+
+        $BW sync
+        ITEM_ID=$($BW list items --search "{{.BW_ITEM}}" | jq -r '.[0].id // empty')
+        if [ -z "$ITEM_ID" ]; then
+          ITEM_ID=$($BW get template item | jq '.name="{{.BW_ITEM}}" | .type=2 | .secureNote.type=0' | $BW encode | $BW create item | jq -r '.id')
+          echo "Created item: $ITEM_ID"
+        fi
+
+        $BW get item "$ITEM_ID" | jq -r '.attachments[]?.id // empty' | xargs -I{} $BW delete attachment {} --itemid "$ITEM_ID" 2>/dev/null || true
+        $BW create attachment --file "$HOME/.config/sops/secrets.yaml" --itemid "$ITEM_ID"
+        $BW create attachment --file "$HOME/.config/sops/age/keys.txt" --itemid "$ITEM_ID"
+        $BW sync
+        echo "Pushed to Bitwarden"
+
+  secrets:pull:
+    desc: Pull secrets from Bitwarden
+    vars: { BW_ITEM: nixpille-secrets }
+    cmds:
+      - |
+        BW="{{.BW}}"
+        [ ! -f "$HOME/.bw-session" ] && { echo "Run: task secrets:login"; exit 1; }
+        export BW_SESSION=$(cat "$HOME/.bw-session")
+        [ "$($BW status | jq -r '.status')" != "unlocked" ] && { echo "Run: task secrets:login"; exit 1; }
+
+        $BW sync
+        ITEM_ID=$($BW list items --search "{{.BW_ITEM}}" | jq -r '.[0].id // empty')
+        [ -z "$ITEM_ID" ] && { echo "Item '{{.BW_ITEM}}' not found"; exit 1; }
+
+        mkdir -p "$HOME/.config/sops/age"
+        $BW get attachment secrets.yaml --itemid "$ITEM_ID" --output "$HOME/.config/sops/secrets.yaml"
+        $BW get attachment keys.txt --itemid "$ITEM_ID" --output "$HOME/.config/sops/age/keys.txt"
+        chmod 600 "$HOME/.config/sops/age/keys.txt"
+        echo "Secrets restored"
