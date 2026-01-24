@@ -59,6 +59,6 @@ in
   environment.systemPackages = [
     sddmTheme
     pkgs.kdePackages.qtmultimedia
-    pkgs.capitaine-cursors # Cursor theme for SDDM
+    pkgs.capitaine-cursors
   ];
 }

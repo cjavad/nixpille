@@ -12,7 +12,8 @@
 
     hyprland.url = "github:hyprwm/Hyprland";
     vicinae.url = "github:vicinaehq/vicinae";
-    zen-browser.url = "github:youwen5/zen-browser-flake";
+    zen-browser.url = "github:0xc000022070/zen-browser-flake";
+    firefox-addons.url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
     nix-flatpak.url = "github:gmodena/nix-flatpak";
 
     sops-nix = {
@@ -37,81 +38,70 @@
 
       flake =
         let
-          primaryUser = "javad";
+          lib = nixpkgs.lib;
+
+          # Home-manager configuration for a list of users
+          mkHomeManagerUsers = users: {
+            imports = [ home-manager.nixosModules.home-manager ];
+            home-manager = {
+              useGlobalPkgs = true;
+              useUserPackages = true;
+              sharedModules = [
+                inputs.sops-nix.homeManagerModules.sops
+                inputs.zen-browser.homeModules.default
+              ];
+              extraSpecialArgs = { inherit inputs; };
+              users = lib.genAttrs users (user: import ./users/${user}/home.nix);
+            };
+          };
 
           mkHost =
-            hostPath:
+            {
+              hostPath,
+              users,
+              desktop ? true,
+              dev ? true,
+            }:
             nixpkgs.lib.nixosSystem {
               system = "x86_64-linux";
-              specialArgs = {
-                inherit inputs primaryUser;
-              };
-              modules = [
-                hostPath
-                ./modules/core
-                ./modules/dev/docker.nix
-                ./modules/desktop/hyprland.nix
-                ./modules/desktop/sddm.nix
-                ./modules/desktop/flatpak.nix
-                ./modules/services/wireguard.nix
-
-                inputs.sops-nix.nixosModules.sops
-                (
-                  { config, ... }:
-                  let
-                    home = config.users.users.${primaryUser}.home;
-                  in
-                  {
-                    sops.defaultSopsFile = "${home}/.config/sops/secrets.yaml";
-                    sops.age.keyFile = "${home}/.config/sops/age/keys.txt";
-                    sops.validateSopsFiles = false; # secrets file is outside repo
-                  }
-                )
-                ./modules/secrets/ssh.nix
-                ./modules/secrets/gpg.nix
-                ./modules/secrets/kubernetes.nix
-
-                home-manager.nixosModules.home-manager
-                {
-                  home-manager.useGlobalPkgs = true;
-                  home-manager.useUserPackages = true;
-                  home-manager.extraSpecialArgs = { inherit inputs primaryUser; };
-                  home-manager.users.${primaryUser} = import ./home/${primaryUser}.nix;
-                }
-              ];
+              specialArgs = { inherit inputs; };
+              modules =
+                [ hostPath ]
+                ++ [ ./hosts/common ]
+                ++ lib.optionals desktop [ ./hosts/common/desktop.nix ]
+                ++ lib.optionals dev [ ./hosts/common/development.nix ]
+                ++ map (user: ./users/${user}/default.nix) users
+                ++ [ (mkHomeManagerUsers users) ];
             };
         in
         {
           nixosConfigurations = {
-            vm = mkHost ./hosts/vm;
-            ideapad = mkHost ./hosts/ideapad;
-            p1gen8 = mkHost ./hosts/p1gen8;
+            vm = mkHost {
+              hostPath = ./hosts/vm;
+              users = [ "javad" ];
+            };
+            ideapad = mkHost {
+              hostPath = ./hosts/ideapad;
+              users = [ "javad" ];
+            };
+            p1gen8 = mkHost {
+              hostPath = ./hosts/p1gen8;
+              users = [ "javad" ];
+            };
 
             gha = nixpkgs.lib.nixosSystem {
               system = "x86_64-linux";
               specialArgs = { inherit inputs; };
-              modules = [ ./hosts/gha ];
+              modules = [
+                ./hosts/gha
+                ./users/runner/default.nix
+              ];
             };
 
             iso = nixpkgs.lib.nixosSystem {
               system = "x86_64-linux";
               specialArgs = { inherit inputs; };
-              modules = [
-                "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
-                (
-                  { pkgs, lib, ... }:
-                  {
-                    boot.supportedFilesystems.zfs = lib.mkForce false;
-                    boot.kernelPackages = pkgs.linuxPackages_latest;
-                    isoImage.squashfsCompression = "gzip -Xcompression-level 1";
-                    environment.systemPackages = with pkgs; [
-                      git
-                      vim
-                    ];
-                    nixpkgs.config.allowUnfree = true;
-                  }
-                )
-              ];
+              modules = [ ./modules/profiles/iso.nix ];
             };
           };
         };

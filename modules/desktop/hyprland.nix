@@ -26,17 +26,9 @@
   };
 
   environment.systemPackages = with pkgs; [
-    kitty
-    waybar
-    mako
-    grim
-    slurp
-    wl-clipboard
-    brightnessctl
-    pamixer
+    brightnessctl # needs system-level udev rules
   ];
 
-  security.rtkit.enable = true;
   services.pipewire = {
     enable = true;
     alsa.enable = true;

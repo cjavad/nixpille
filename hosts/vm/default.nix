@@ -8,8 +8,7 @@
 {
   imports = [
     ./hardware.nix
-    ../../modules/profiles/vm.nix
-    ../../modules/users/javad.nix
+    ../../modules/virtualisation/qemu-guest.nix
   ];
 
   networking.hostName = "vm";
@@ -19,6 +18,5 @@
     settings.PasswordAuthentication = true;
   };
 
-  networking.firewall.enable = true;
   system.stateVersion = "25.11";
 }

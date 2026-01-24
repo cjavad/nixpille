@@ -8,7 +8,6 @@
 {
   imports = [
     ./hardware.nix
-    ../../modules/users/javad.nix
   ];
 
   networking.hostName = "p1gen8";
@@ -29,10 +28,7 @@
   };
   services.xserver.videoDrivers = [ "nvidia" ];
 
-  services.fwupd.enable = true;
-  services.tlp.enable = true;
   services.openssh.enable = true;
-  networking.firewall.enable = true;
 
   system.stateVersion = "25.11";
 }

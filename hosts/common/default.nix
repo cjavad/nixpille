@@ -1,14 +1,9 @@
-{ pkgs, lib, primaryUser, ... }:
+# Shared system configuration for all hosts
+{ pkgs, lib, ... }:
 
 {
   imports = [
-    ./caches.nix
-    ./security.nix
-  ];
-
-  # Symlink /etc/nixos to user's config for nixos-rebuild to work without --flake
-  systemd.tmpfiles.rules = [
-    "L+ /etc/nixos - - - - /home/${primaryUser}/nixos-config"
+    ../../modules/core/caches.nix
   ];
 
   nix = {
