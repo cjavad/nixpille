@@ -1,0 +1,707 @@
+#!/usr/bin/env fish
+
+# =============================================================================
+# nixpille NixOS Installer
+# =============================================================================
+# Redesigned with explicit status handling and state machine for reliable
+# control flow in fish shell.
+
+# Status constants
+set -g STATUS_OK 0
+set -g STATUS_CANCEL 1
+set -g STATUS_ERROR 2
+
+# Config
+set -g DIALOG (command -v dialog)
+set -g BACKTITLE "nixpille NixOS Installer"
+set -g LOCAL_REPO "/etc/nixpille/repo"
+set -g WORK_DIR "/tmp/nixpille-install"
+set -g REMOTE_REPO "https://github.com/cjavad/nixpille"
+
+# Dialog result (set by dialog_run)
+set -g DIALOG_RESULT ""
+
+# Function results (avoid command substitution status loss)
+set -g SELECTED_DISK ""
+set -g SELECTED_HOST ""
+set -g ENTERED_PASSWORD ""
+
+# =============================================================================
+# Core Dialog Wrapper
+# =============================================================================
+# Captures output AND status separately to avoid fish's command substitution
+# status loss problem.
+
+function dialog_run
+    set -g DIALOG_RESULT ""
+    set -g DIALOG_RESULT ($DIALOG --backtitle "$BACKTITLE" $argv 2>&1 >/dev/tty)
+    set -l code $status
+
+    switch $code
+        case 0
+            return $STATUS_OK
+        case 1 255
+            return $STATUS_CANCEL  # Cancel or ESC
+        case '*'
+            return $STATUS_ERROR
+    end
+end
+
+# =============================================================================
+# UI Helpers
+# =============================================================================
+
+# Source POSIX-style env files (VAR=value) in fish
+function source_env
+    set -l file $argv[1]
+    if test -f $file
+        while read -l line
+            # Skip empty lines and comments
+            if test -z "$line"; or string match -q '#*' $line
+                continue
+            end
+            # Parse VAR=value (handle quoted values)
+            set -l parts (string split -m 1 '=' $line)
+            if test (count $parts) -eq 2
+                set -l varname $parts[1]
+                set -l varvalue (string trim -c '\'"' $parts[2])
+                set -gx $varname $varvalue
+            end
+        end < $file
+    end
+end
+
+function ui_info
+    $DIALOG --backtitle "$BACKTITLE" --infobox "$argv[1]" 5 50
+    sleep 1
+end
+
+function ui_error
+    $DIALOG --backtitle "$BACKTITLE" --title "Error" --msgbox "$argv[1]" 8 50
+end
+
+function ui_msg
+    $DIALOG --backtitle "$BACKTITLE" --title "$argv[1]" --msgbox "$argv[2]" $argv[3] $argv[4]
+end
+
+function die
+    ui_error "$argv[1]"
+    exit 1
+end
+
+# =============================================================================
+# Hardware Detection
+# =============================================================================
+
+function detect_gpu
+    set gpu_info (lspci 2>/dev/null | grep -iE "vga|3d|display")
+
+    set has_nvidia 0
+    set has_amd 0
+    set has_intel 0
+
+    echo $gpu_info | grep -iq nvidia; and set has_nvidia 1
+    echo $gpu_info | grep -iqE "amd|radeon"; and set has_amd 1
+    echo $gpu_info | grep -iq intel; and set has_intel 1
+
+    if test $has_nvidia -eq 1 -a $has_intel -eq 1
+        echo "intel-nvidia"
+    else if test $has_nvidia -eq 1 -a $has_amd -eq 1
+        echo "amd-nvidia"
+    else if test $has_nvidia -eq 1
+        echo "nvidia"
+    else if test $has_amd -eq 1
+        echo "amd"
+    else if test $has_intel -eq 1
+        echo "intel"
+    else
+        echo "unknown"
+    end
+end
+
+function show_hardware_summary
+    set cpu (grep -m1 "model name" /proc/cpuinfo 2>/dev/null | cut -d: -f2 | string trim; or echo "Unknown")
+    set gpu (lspci 2>/dev/null | grep -iE "vga|3d|display" | cut -d: -f3 | head -2 | string join " "; or echo "Unknown")
+    set gpu_type (detect_gpu)
+    set mem (free -h 2>/dev/null | awk '/^Mem:/{print $2}'; or echo "Unknown")
+    set disk (lsblk -d -n -o NAME,SIZE,MODEL 2>/dev/null | grep -v loop | head -3 | string join "\n"; or echo "Unknown")
+
+    $DIALOG --backtitle "$BACKTITLE" \
+        --title "Hardware Detected" \
+        --msgbox "CPU: $cpu\n\nGPU: $gpu\nType: $gpu_type\n\nMemory: $mem\n\nDisks:\n$disk" 16 70
+end
+
+function get_default_hostname
+    cat /sys/class/dmi/id/product_name 2>/dev/null | tr ' ' '-' | tr '[:upper:]' '[:lower:]'; or echo "new-host"
+end
+
+function is_predefined_host
+    switch $argv[1]
+        case vm ideapad p1gen8 gha
+            return 0
+        case '*'
+            return 1
+    end
+end
+
+# =============================================================================
+# Network Setup
+# =============================================================================
+
+function check_network
+    ping -c 1 -W 2 cache.nixos.org &>/dev/null
+end
+
+function configure_network
+    if check_network
+        dialog_run --yesno "Network already connected.\n\nReconfigure anyway?" 8 40
+        if test $status -ne $STATUS_OK
+            return $STATUS_OK
+        end
+    end
+
+    dialog_run --title "Network Setup" \
+        --menu "Configure network connection:" 12 50 4 \
+        "wifi" "Connect to WiFi" \
+        "ethernet" "Use wired connection (auto)" \
+        "skip" "Skip (continue without network)"
+
+    if test $status -ne $STATUS_OK
+        return $STATUS_CANCEL
+    end
+
+    set choice $DIALOG_RESULT
+
+    switch $choice
+        case wifi
+            if test -f /etc/nixpille/wifi.env
+                source_env /etc/nixpille/wifi.env
+                if test -n "$WIFI_SSID" -a -n "$WIFI_PASS"
+                    ui_info "Connecting to $WIFI_SSID..."
+                    if nmcli dev wifi connect "$WIFI_SSID" password "$WIFI_PASS" 2>/dev/null
+                        ui_info "Connected to $WIFI_SSID!"
+                        return $STATUS_OK
+                    end
+                    ui_msg "WiFi" "Auto-connect failed.\nFalling back to manual." 7 40
+                end
+            end
+            nmtui-connect
+        case ethernet
+            ui_info "Waiting for network..."
+            nmcli networking on
+            sleep 3
+            if check_network
+                ui_info "Connected!"
+            else
+                ui_msg "Network" "Could not detect network.\nCheck cable connection." 8 40
+            end
+        case skip
+            ui_msg "Warning" "Installation requires network.\nYou can configure later from main menu." 8 50
+    end
+
+    return $STATUS_OK
+end
+
+# =============================================================================
+# Initial Setup
+# =============================================================================
+
+function select_keyboard
+    dialog_run --title "Keyboard Layout" \
+        --default-item "dk" \
+        --menu "Select keyboard layout:" 12 50 5 \
+        "dk" "Danish" \
+        "us" "US English" \
+        "de" "German" \
+        "uk" "UK English" \
+        "skip" "Keep current"
+
+    if test $status -ne $STATUS_OK
+        return $STATUS_OK  # Cancel = keep current
+    end
+
+    set layout $DIALOG_RESULT
+
+    if test "$layout" != "skip"
+        sudo loadkeys $layout
+        ui_info "Keyboard set to $layout"
+    end
+
+    return $STATUS_OK
+end
+
+function initial_setup
+    $DIALOG --backtitle "$BACKTITLE" \
+        --title "Welcome to nixpille" \
+        --msgbox "This installer will help you install NixOS.\n\nFirst, let's configure keyboard and network." 10 50
+
+    select_keyboard
+    configure_network
+end
+
+# =============================================================================
+# Disk Selection
+# =============================================================================
+
+function select_disk
+    set -g SELECTED_DISK ""
+    set disk_lines (lsblk -d -n -p -o NAME,SIZE,MODEL | grep -v loop)
+
+    if test (count $disk_lines) -eq 0
+        ui_error "No disks found"
+        return $STATUS_ERROR
+    end
+
+    set disk_menu
+    for line in $disk_lines
+        set disk (echo $line | awk '{print $1}')
+        set diskinfo (echo $line | awk '{$1=""; print substr($0,2)}')
+        set -a disk_menu $disk "$diskinfo"
+    end
+
+    dialog_run --title "Select Disk" \
+        --menu "Choose the target disk (WILL BE ERASED):" 15 60 5 \
+        $disk_menu
+
+    if test $status -ne $STATUS_OK
+        return $STATUS_CANCEL
+    end
+
+    # Validate selection
+    if not test -b $DIALOG_RESULT
+        ui_error "$DIALOG_RESULT is not a valid block device"
+        return $STATUS_ERROR
+    end
+
+    set -g SELECTED_DISK $DIALOG_RESULT
+    return $STATUS_OK
+end
+
+# Get disk size in GB
+function get_disk_size_gb
+    set device $argv[1]
+    set bytes (lsblk -b -d -n -o SIZE $device 2>/dev/null)
+    if test -n "$bytes"
+        math "$bytes / 1073741824"  # bytes to GB
+    else
+        echo 0
+    end
+end
+
+# Estimate required install size for a host (in GB)
+function estimate_install_size
+    set hostname $argv[1]
+
+    # Check if we have the closure size cached on the ISO
+    set closure_file "/etc/nixpille/closure-sizes/$hostname"
+    if test -f $closure_file
+        cat $closure_file
+        return
+    end
+
+    # Default estimates based on host type
+    switch $hostname
+        case vm
+            echo 25  # Minimal VM
+        case '*'
+            echo 35  # Full desktop with home-manager
+    end
+end
+
+# Check if disk is large enough and warn
+function check_disk_size
+    set device $argv[1]
+    set hostname $argv[2]
+
+    set disk_gb (get_disk_size_gb $device)
+    set required_gb (estimate_install_size $hostname)
+    set recommended_gb (math "$required_gb + 15")  # Extra space for updates/user data
+
+    if test $disk_gb -lt $required_gb
+        dialog_run --title "Disk Too Small" --yesno \
+            "WARNING: Disk may be too small!\n\n  Disk size: $disk_gb GB\n  Required:  ~$required_gb GB\n  Recommended: $recommended_gb GB+\n\nInstallation may fail. Continue anyway?" 12 55
+        return $status
+    else if test $disk_gb -lt $recommended_gb
+        dialog_run --title "Disk Size Warning" --yesno \
+            "Disk is usable but tight on space:\n\n  Disk size: $disk_gb GB\n  Required:  ~$required_gb GB\n  Recommended: $recommended_gb GB+\n\nYou may run low on space. Continue?" 12 55
+        return $status
+    end
+
+    return $STATUS_OK
+end
+
+# =============================================================================
+# Host Selection
+# =============================================================================
+
+function select_host
+    set -g SELECTED_HOST ""
+
+    dialog_run --title "Select Host" \
+        --menu "Choose host configuration:" 16 65 6 \
+        "vm" "Virtual machine (QEMU)" \
+        "ideapad" "Lenovo IdeaPad (AMD+NVIDIA)" \
+        "p1gen8" "ThinkPad P1 Gen 8 (Intel+NVIDIA)" \
+        "new" "Create new host from this hardware"
+
+    if test $status -ne $STATUS_OK
+        return $STATUS_CANCEL
+    end
+
+    set choice $DIALOG_RESULT
+
+    if test "$choice" = "new"
+        dialog_run --title "Host Name" \
+            --inputbox "Enter hostname for new machine:" 8 50 \
+            (get_default_hostname)
+
+        if test $status -ne $STATUS_OK
+            return $STATUS_CANCEL
+        end
+        set -g SELECTED_HOST $DIALOG_RESULT
+    else
+        set -g SELECTED_HOST $choice
+    end
+
+    return $STATUS_OK
+end
+
+# =============================================================================
+# Password Entry
+# =============================================================================
+
+function get_password
+    set -g ENTERED_PASSWORD ""
+    set username $argv[1]
+
+    while true
+        dialog_run --title "Password" \
+            --insecure --passwordbox "Enter password for $username:" 8 50
+        if test $status -ne $STATUS_OK
+            return $STATUS_CANCEL
+        end
+        set pass1 $DIALOG_RESULT
+
+        dialog_run --title "Confirm Password" \
+            --insecure --passwordbox "Confirm password:" 8 50
+        if test $status -ne $STATUS_OK
+            return $STATUS_CANCEL
+        end
+        set pass2 $DIALOG_RESULT
+
+        if test "$pass1" = "$pass2"
+            set -g ENTERED_PASSWORD $pass1
+            return $STATUS_OK
+        end
+
+        ui_msg "Error" "Passwords do not match." 6 40
+    end
+end
+
+# =============================================================================
+# Flake Preparation
+# =============================================================================
+
+function prepare_local_flake
+    set hostname $argv[1]
+
+    ui_info "Preparing local flake..."
+    rm -rf $WORK_DIR
+
+    if test -d $LOCAL_REPO
+        cp -rL $LOCAL_REPO $WORK_DIR
+        chmod -R u+w $WORK_DIR
+    else
+        ui_info "Cloning repository..."
+        git clone --depth 1 $REMOTE_REPO $WORK_DIR
+    end
+
+    mkdir -p $WORK_DIR/hosts/$hostname
+end
+
+function generate_default_nix
+    set hostname $argv[1]
+    set output $WORK_DIR/hosts/$hostname/default.nix
+
+    echo "# Host: $hostname
+# Generated: "(date -Iseconds)"
+{ config, pkgs, ... }:
+
+{
+  imports = [ ./hardware.nix ];
+  networking.hostName = \"$hostname\";
+  services.openssh.enable = true;
+  system.stateVersion = \"25.11\";
+}" > $output
+end
+
+# =============================================================================
+# Install Execution (Point of No Return)
+# =============================================================================
+
+function execute_install
+    set device $argv[1]
+    set hostname $argv[2]
+    set username $argv[3]
+    set password $argv[4]
+
+    # 1. Partition
+    ui_info "Partitioning $device..."
+    if not sudo nix run github:nix-community/disko -- \
+            --mode disko \
+            --arg device "\"$device\"" \
+            /etc/nixpille/disko/standard.nix
+        ui_error "Partitioning failed"
+        return $STATUS_ERROR
+    end
+
+    # 2. Prepare local flake with hardware.nix
+    prepare_local_flake $hostname
+
+    if test -f /tmp/nixpille-hosts/$hostname/hardware.nix
+        ui_info "Using existing hardware config..."
+        cp /tmp/nixpille-hosts/$hostname/hardware.nix $WORK_DIR/hosts/$hostname/
+    else
+        ui_info "Generating hardware config..."
+        sudo nixos-generate-config --root /mnt --show-hardware-config > $WORK_DIR/hosts/$hostname/hardware.nix
+    end
+
+    # For new hosts, generate default.nix
+    if not is_predefined_host $hostname
+        generate_default_nix $hostname
+    end
+
+    # 3. Initialize git repo (required for flake evaluation)
+    ui_info "Preparing flake..."
+    pushd $WORK_DIR
+    git init -q
+    git add -A
+    popd
+
+    # 4. Verify flake can build the configuration
+    ui_info "Verifying configuration..."
+    if not nix build "$WORK_DIR#nixosConfigurations.$hostname.config.system.build.toplevel" --dry-run 2>/dev/null
+        ui_error "Configuration '$hostname' failed to evaluate.\nCheck that the host exists and is valid."
+        return $STATUS_ERROR
+    end
+
+    # 5. Install from local flake
+    ui_info "Installing NixOS..."
+
+    set extra_opts
+    if test -f /etc/nixpille/cache.env
+        source_env /etc/nixpille/cache.env
+        test -n "$EXTRA_SUBSTITUTERS"; and set -a extra_opts --option extra-substituters "$EXTRA_SUBSTITUTERS"
+        test -n "$EXTRA_TRUSTED_KEYS"; and set -a extra_opts --option extra-trusted-public-keys "$EXTRA_TRUSTED_KEYS"
+    end
+
+    if not sudo nixos-install --flake "$WORK_DIR#$hostname" --no-root-passwd --no-channel-copy $extra_opts
+        ui_error "nixos-install failed"
+        return $STATUS_ERROR
+    end
+
+    # 6. Save hardware.nix to installed system
+    sudo mkdir -p /mnt/etc/nixpille/hosts/$hostname
+    sudo cp $WORK_DIR/hosts/$hostname/hardware.nix /mnt/etc/nixpille/hosts/$hostname/
+
+    # 7. Set password
+    sudo nixos-enter --root /mnt -c "echo '$username:$password' | chpasswd"
+
+    return $STATUS_OK
+end
+
+# =============================================================================
+# Install Wizard with Step Navigation
+# =============================================================================
+
+function install_wizard
+    set -l step 1
+    set -l device ""
+    set -l hostname ""
+    set -l username "javad"
+    set -l password ""
+
+    # Wizard loop - can go back and forth
+    while test $step -le 4
+        switch $step
+            case 1  # Select disk
+                select_disk
+                if test $status -ne $STATUS_OK
+                    return $STATUS_CANCEL  # Cancel at step 1 = back to menu
+                end
+                set device $SELECTED_DISK
+                set step 2
+
+            case 2  # Select host
+                select_host
+                if test $status -ne $STATUS_OK
+                    set step 1  # Back to disk
+                    continue
+                end
+                set hostname $SELECTED_HOST
+
+                # Check disk size
+                check_disk_size $device $hostname
+                if test $status -ne $STATUS_OK
+                    set step 1  # Back to disk selection
+                    continue
+                end
+                set step 3
+
+            case 3  # Password
+                get_password $username
+                if test $status -ne $STATUS_OK
+                    set step 2  # Back to host
+                    continue
+                end
+                set password $ENTERED_PASSWORD
+                set step 4
+
+            case 4  # Confirm
+                dialog_run --title "Confirm" --yesno \
+                    "Install NixOS:\n\n  Disk: $device (WILL BE ERASED)\n  Host: $hostname\n  User: $username\n\nProceed?" 12 50
+                if test $status -ne $STATUS_OK
+                    set step 3  # Back to password
+                    continue
+                end
+                break  # Confirmed - exit wizard loop
+        end
+    end
+
+    # === EXECUTION PHASE (point of no return) ===
+    execute_install $device $hostname $username $password
+    return $status
+end
+
+# =============================================================================
+# Hardware Mode
+# =============================================================================
+
+function hardware_mode
+    show_hardware_summary
+
+    dialog_run --title "Host Name" \
+        --inputbox "Enter hostname (existing or new):\n\nExisting hosts: vm, ideapad, p1gen8" 12 50 \
+        (get_default_hostname)
+
+    if test $status -ne $STATUS_OK
+        return $STATUS_CANCEL
+    end
+
+    set hostname $DIALOG_RESULT
+    set output_dir /tmp/nixpille-hosts/$hostname
+    mkdir -p $output_dir
+
+    ui_info "Generating hardware.nix..."
+    nixos-generate-config --show-hardware-config > $output_dir/hardware.nix 2>/dev/null
+
+    if not is_predefined_host $hostname
+        echo "# Host: $hostname
+# Generated: "(date -Iseconds)"
+{ config, pkgs, ... }:
+
+{
+  imports = [ ./hardware.nix ];
+  networking.hostName = \"$hostname\";
+  services.openssh.enable = true;
+  system.stateVersion = \"25.11\";
+}" > $output_dir/default.nix
+
+        ui_msg "New Host Generated" \
+            "Created new host config:\n\n  $output_dir/\n    ├── default.nix\n    └── hardware.nix\n\nCopy to hosts/$hostname/ in your repo.\nFlake auto-discovers new hosts!" 14 55
+    else
+        ui_msg "Hardware Config Generated" \
+            "Generated hardware.nix for existing host '$hostname':\n\n  $output_dir/hardware.nix\n\nCopy to hosts/$hostname/hardware.nix" 12 55
+    end
+
+    dialog_run --yesno "View hardware.nix?" 7 30
+    if test $status -eq $STATUS_OK
+        $DIALOG --backtitle "$BACKTITLE" --textbox $output_dir/hardware.nix 22 78
+    end
+
+    set usb_mounts (lsblk -n -o MOUNTPOINT | grep -E "^/run/media|^/media" | head -5)
+    if test -n "$usb_mounts"
+        dialog_run --yesno "Copy to USB?" 7 30
+        if test $status -eq $STATUS_OK
+            set usb_menu
+            for mount in $usb_mounts
+                test -n "$mount"; and set -a usb_menu $mount (basename $mount)
+            end
+
+            if test (count $usb_menu) -gt 0
+                dialog_run --menu "Copy to:" 12 60 5 $usb_menu
+                if test $status -eq $STATUS_OK
+                    set usb_dest $DIALOG_RESULT
+                    cp -r $output_dir $usb_dest/
+                    ui_msg "Copied" "Copied to: $usb_dest/$hostname/" 7 50
+                end
+            end
+        end
+    end
+
+    return $STATUS_OK
+end
+
+# =============================================================================
+# Main Menu Loop
+# =============================================================================
+
+function main_menu_loop
+    while true
+        dialog_run --title "Main Menu" --menu "What would you like to do?" 15 60 5 \
+            "install"  "Install NixOS to disk" \
+            "hardware" "Generate hardware.nix for a host" \
+            "network"  "Configure network connection" \
+            "info"     "Show hardware information" \
+            "shell"    "Exit to shell"
+
+        set -l menu_status $status
+        set -l choice $DIALOG_RESULT
+
+        # ESC/Cancel in main menu = confirm exit
+        if test $menu_status -ne $STATUS_OK
+            dialog_run --title "Exit" --yesno "Exit installer?" 7 30
+            if test $status -eq $STATUS_OK
+                return $STATUS_OK
+            end
+            continue
+        end
+
+        switch $choice
+            case install
+                install_wizard
+                set -l wizard_status $status
+                if test $wizard_status -eq $STATUS_OK
+                    # Success - show message and exit
+                    ui_msg "Complete" "NixOS installed!\n\nRemove media and reboot." 8 50
+                    return $STATUS_OK
+                end
+                # Cancel or error - just return to menu
+
+            case hardware
+                hardware_mode
+
+            case network
+                configure_network
+
+            case info
+                show_hardware_summary
+
+            case shell
+                return $STATUS_OK
+        end
+    end
+end
+
+# =============================================================================
+# Main Entry Point
+# =============================================================================
+
+function main
+    initial_setup
+    main_menu_loop
+    clear
+    echo "Installer finished. Run 'nixpille-install' to restart."
+end
+
+main $argv

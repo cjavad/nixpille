@@ -1,4 +1,3 @@
-# Audio configuration (PipeWire)
 { ... }:
 
 {
@@ -9,5 +8,5 @@
     pulse.enable = true;
   };
 
-  security.rtkit.enable = true; # Realtime scheduling for audio
+  security.rtkit.enable = true;
 }

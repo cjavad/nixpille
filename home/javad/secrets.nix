@@ -1,4 +1,3 @@
-# User secrets (SSH, GPG, kubeconfig, wireguard)
 {
   config,
   pkgs,
@@ -7,7 +6,7 @@
 }:
 
 let
-  manifest = import ../../secrets/manifest.nix;
+  manifest = import ../../ops/secrets/manifest.nix;
   home = config.home.homeDirectory;
   gpgSecretNames = map (n: "gpg_${n}") manifest.gpg;
 in

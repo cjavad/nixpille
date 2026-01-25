@@ -12,33 +12,24 @@ let
       '';
     };
 
-  # Your extensions (based on current php -m)
   defaultExtensions = [
-    # Debug/dev
     "xdebug"
-    # Caching
     "redis"
     "igbinary"
     "opcache"
-    # Database
     "pdo_mysql"
     "pdo_pgsql"
     "pdo_sqlite"
     "mysqli"
-    # Image
     "gd"
     "imagick"
-    # Compression
     "zip"
     "bz2"
-    # Internationalization
     "intl"
     "mbstring"
-    # XML
     "soap"
     "xml"
     "xsl"
-    # Misc
     "bcmath"
     "gmp"
     "ldap"

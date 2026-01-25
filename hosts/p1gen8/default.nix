@@ -6,13 +6,10 @@
 }:
 
 {
-  imports = [
-    ./hardware.nix
-  ];
+  imports = [ ./hardware.nix ];
 
   networking.hostName = "p1gen8";
 
-  # Hybrid Intel + NVIDIA
   hardware.nvidia = {
     modesetting.enable = true;
     powerManagement.enable = true;
@@ -21,7 +18,6 @@
     prime = {
       offload.enable = true;
       offload.enableOffloadCmd = true;
-      # Bus IDs - verify with: lspci | grep -E 'VGA|3D'
       intelBusId = "PCI:0:2:0";
       nvidiaBusId = "PCI:1:0:0";
     };

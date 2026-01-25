@@ -1,4 +1,3 @@
-# Shared system configuration for all hosts
 { pkgs, lib, ... }:
 
 {
@@ -6,6 +5,7 @@
     ./network.nix
     ./docker.nix
     ./security.nix
+    (import ../../modules/cache).nixosModule
   ];
 
   nix = {
@@ -29,7 +29,10 @@
   };
 
   boot = {
+    # Bootloader (systemd-boot for EFI systems)
+    loader.systemd-boot.enable = lib.mkDefault true;
     loader.systemd-boot.configurationLimit = lib.mkDefault 10;
+    loader.efi.canTouchEfiVariables = lib.mkDefault true;
     loader.grub.configurationLimit = lib.mkDefault 10;
     kernelPackages = pkgs.linuxPackages_zen;
     kernelParams = [

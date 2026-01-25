@@ -1,5 +1,3 @@
-# Hardware configuration - REPLACE with output of:
-# nixos-generate-config --show-hardware-config
 {
   config,
   lib,
@@ -9,16 +7,13 @@
 }:
 
 {
-  imports = [
-    (modulesPath + "/installer/scan/not-detected.nix")
-  ];
+  imports = [ (modulesPath + "/installer/scan/not-detected.nix") ];
 
-  # TODO: Run `nixos-generate-config --show-hardware-config` and paste here
+  # TODO: replace with nixos-generate-config --show-hardware-config
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # Placeholder - will be auto-detected
   boot.initrd.availableKernelModules = [
     "xhci_pci"
     "ahci"
@@ -28,7 +23,6 @@
   ];
   boot.kernelModules = [ "kvm-amd" ];
 
-  # Filesystems - MUST be updated for your disk layout
   fileSystems."/" = {
     device = "/dev/disk/by-label/nixos";
     fsType = "ext4";

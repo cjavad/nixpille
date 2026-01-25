@@ -1,4 +1,3 @@
-# Zen Browser with declarative extensions
 { pkgs, inputs, ... }:
 
 let

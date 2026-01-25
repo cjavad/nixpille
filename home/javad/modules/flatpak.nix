@@ -10,5 +10,6 @@
 
   services.flatpak.packages = [
     "dev.vencord.Vesktop"
+    "com.slack.Slack"
   ];
 }

@@ -1,39 +1,28 @@
-# Per-project PHP shell
-# Copy to project, change phpPkg version, then: echo "use nix" > .envrc && direnv allow
 {
   pkgs ? import <nixpkgs> { },
 }:
 
 let
-  # Change: php83, php84, php85
   phpPkg = pkgs.php84;
 
   extensions = [
-    # Debug
     "xdebug"
-    # Cache
     "redis"
     "igbinary"
     "opcache"
-    # Database
     "pdo_mysql"
     "pdo_pgsql"
     "pdo_sqlite"
     "mysqli"
-    # Image
     "gd"
     "imagick"
-    # Compression
     "zip"
     "bz2"
-    # i18n
     "intl"
     "mbstring"
-    # XML
     "soap"
     "xml"
     "xsl"
-    # Misc
     "bcmath"
     "gmp"
     "ldap"

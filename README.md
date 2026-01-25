@@ -40,10 +40,12 @@ Naming: `ssh_<file>`, `wg_<name>`, `gpg_<name>` → auto-deployed on rebuild.
 ```
 hosts/              # Machine configs
 modules/            # NixOS modules
-users/              # Home-manager user configs
-secrets/            # sops secrets
-scripts/            # Shell scripts
-tasks/              # Taskfile includes
+home/               # Home-manager user configs
+ops/                # Operational tooling
+  scripts/          #   Shell scripts
+  secrets/          #   sops secrets
+  tasks/            #   Taskfile includes
+  tests/            #   Nix tests
 ```
 
 ## Adding a Host
@@ -55,3 +57,15 @@ tasks/              # Taskfile includes
 ## Acknowledgements
 
 I actually don't have time to waste on nix lang or its syntax, so that is all @claude (opus), love that guy.
+
+## TODOs
+
+- auto-optimise-store
+- bar tooling
+- battery life optimization
+- disk drive health
+- cleanup tasks
+- screen filtering
+- QoL
+- programs
+- dev envs

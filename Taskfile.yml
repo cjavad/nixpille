@@ -11,7 +11,7 @@ vars:
 
 includes:
   secrets:
-    taskfile: ./tasks/secrets.yml
+    taskfile: ./ops/secrets/Taskfile.yml
     dir: .
 
 tasks:
@@ -24,11 +24,6 @@ tasks:
     cmds:
       - nix build .#nixosConfigurations.{{.HOST}}.config.system.build.vm
       - ./result/bin/run-{{.HOST}}-vm
-
-  vm:rm:
-    desc: Remove VM disk
-    cmds:
-      - rm -f {{.HOST}}.qcow2
 
   switch:
     desc: Switch to new config
@@ -66,36 +61,60 @@ tasks:
       - rm -f result *.qcow2
 
   iso:
-    desc: Build installer ISO
+    desc: Build full installer ISO (includes all host closures)
     cmds:
-      - nix build .#nixosConfigurations.iso.config.system.build.isoImage
+      - nix build .#nixosConfigurations.iso.config.system.build.isoImage -L
+      - echo "ISO at ./result/iso/*.iso"
+
+  iso:minimal:
+    desc: Build minimal installer ISO (no host closures, smaller/faster)
+    cmds:
+      - nix build .#nixosConfigurations.iso-minimal.config.system.build.isoImage -L
       - echo "ISO at ./result/iso/*.iso"
 
   iso:test:
-    desc: Test installer ISO in QEMU
-    deps: [iso]
+    desc: Test installer ISO in QEMU (use MINIMAL=1 for minimal ISO)
+    vars:
+      CONFIG: '{{if .MINIMAL}}iso-minimal{{else}}iso{{end}}'
     cmds:
+      - nix build .#nixosConfigurations.{{.CONFIG}}.config.system.build.isoImage -L
       - |
-        # Create test disk if it doesn't exist
-        if [ ! -f disk.img ]; then
-          qemu-img create -f qcow2 disk.img 20G
+        # Create test disk if it doesn't exist (40G for full install)
+        if [ ! -f disk.qcow2 ]; then
+          qemu-img create -f qcow2 disk.qcow2 40G
         fi
       - |
-        qemu-system-x86_64 \
-          -m 4G \
-          -smp 4 \
-          -enable-kvm \
-          -boot d \
-          -cdrom $(find result/iso -name '*.iso' -type f | head -1) \
-          -drive file=disk.img,format=qcow2 \
-          -nic user,model=virtio-net-pci \
-          -vga virtio \
-          -display gtk
+        nix shell nixpkgs#qemu nixpkgs#OVMF -c sh -c '
+          qemu-system-x86_64 \
+            -m 8G \
+            -smp 4 \
+            -cpu host \
+            -enable-kvm \
+            -drive if=pflash,format=raw,readonly=on,file=$(dirname $(which qemu-system-x86_64))/../share/qemu/edk2-x86_64-code.fd \
+            -boot d \
+            -cdrom $(find result/iso -name "*.iso" -type f | head -1) \
+            -drive file=disk.qcow2,format=qcow2,if=virtio \
+            -nic user,model=virtio-net-pci \
+            -vga virtio \
+            -display gtk
+        '
 
-  iso:test:clean:
-    desc: Remove ISO test disk
+  iso:boot:
+    desc: Boot from installed disk image
     cmds:
-      - rm -f disk.img
+      - |
+        nix shell nixpkgs#qemu nixpkgs#OVMF -c sh -c '
+          qemu-system-x86_64 \
+            -m 8G \
+            -smp 4 \
+            -cpu host \
+            -enable-kvm \
+            -drive if=pflash,format=raw,readonly=on,file=$(dirname $(which qemu-system-x86_64))/../share/qemu/edk2-x86_64-code.fd \
+            -drive file=disk.qcow2,format=qcow2,if=virtio \
+            -nic user,model=virtio-net-pci \
+            -vga virtio \
+            -display gtk
+        '
 
   release:
     desc: Create GitHub release

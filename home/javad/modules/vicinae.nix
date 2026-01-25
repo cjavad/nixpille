@@ -57,7 +57,6 @@
     extensions = [ ];
   };
 
-  # Systemd service dependencies (uwsm activates graphical-session.target)
   systemd.user.services.vicinae = {
     Unit = {
       After = [ "graphical-session.target" ];

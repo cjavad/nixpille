@@ -1,6 +1,8 @@
 {
   description = "NixOS configuration";
 
+  # NOTE: Must be literal values (flake parser limitation)
+  # Source of truth: modules/cache/default.nix
   nixConfig = {
     extra-substituters = [
       "https://hyprland.cachix.org"
@@ -15,22 +17,14 @@
   };
 
   inputs = {
-    # Stable by default
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
-
     flake-parts.url = "github:hercules-ci/flake-parts";
 
     home-manager = {
       url = "github:nix-community/home-manager/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    hyprland.url = "github:hyprwm/Hyprland";
-    vicinae.url = "github:vicinaehq/vicinae/v0.19.1";
-    zen-browser.url = "github:0xc000022070/zen-browser-flake";
-    firefox-addons.url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
-    nix-flatpak.url = "github:gmodena/nix-flatpak";
 
     sops-nix = {
       url = "github:Mic92/sops-nix";
@@ -41,123 +35,146 @@
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    hyprland.url = "github:hyprwm/Hyprland";
+    vicinae.url = "github:vicinaehq/vicinae";
+    zen-browser.url = "github:0xc000022070/zen-browser-flake";
+    firefox-addons.url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
+    nix-flatpak.url = "github:gmodena/nix-flatpak";
   };
 
   outputs =
     inputs@{
-      self,
       nixpkgs,
       flake-parts,
       home-manager,
       ...
     }:
+    let
+      lib = nixpkgs.lib;
+
+      discover =
+        dir:
+        lib.filterAttrs (
+          name: type:
+          type == "directory" && name != "common" && builtins.pathExists (dir + "/${name}/default.nix")
+        ) (builtins.readDir dir);
+
+      users = builtins.attrNames (discover ./home);
+      hosts = builtins.attrNames (discover ./hosts);
+
+      system = "x86_64-linux";
+
+      pkgs-unstable = import inputs.nixpkgs-unstable {
+        inherit system;
+        config.allowUnfree = true;
+      };
+
+      specialArgs = {
+        inherit inputs pkgs-unstable;
+      };
+
+      homeModules = [
+        inputs.sops-nix.homeManagerModules.sops
+        inputs.zen-browser.homeModules.default
+      ];
+
+      mkHome =
+        user:
+        home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.${system};
+          extraSpecialArgs = specialArgs;
+          modules = homeModules ++ [ ./home/${user}/home.nix ];
+        };
+
+      mkHomeModule = userList: {
+        imports = [ home-manager.nixosModules.home-manager ];
+        home-manager = {
+          useGlobalPkgs = true;
+          useUserPackages = true;
+          sharedModules = homeModules;
+          extraSpecialArgs = specialArgs;
+          users = lib.genAttrs userList (user: import ./home/${user}/home.nix);
+        };
+      };
+
+      mkHost =
+        name:
+        {
+          users ? [ "javad" ],
+          desktop ? true,
+        }:
+        nixpkgs.lib.nixosSystem {
+          inherit system specialArgs;
+          modules = [
+            ./hosts/${name}
+            ./hosts/common
+          ]
+          ++ lib.optional desktop ./hosts/common/desktop.nix
+          ++ map (user: ./home/${user}/default.nix) users
+          ++ [ (mkHomeModule users) ];
+        };
+    in
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [
         "x86_64-linux"
         "aarch64-linux"
       ];
 
-      flake =
-        let
-          lib = nixpkgs.lib;
+      flake = {
+        homeConfigurations = lib.genAttrs users mkHome;
 
-          # Unstable packages for selective use
-          pkgs-unstable = import inputs.nixpkgs-unstable {
-            system = "x86_64-linux";
-            config.allowUnfree = true;
-          };
-
-          # Home-manager configuration for a list of users
-          mkHomeManagerUsers = users: {
-            imports = [ home-manager.nixosModules.home-manager ];
-            home-manager = {
-              useGlobalPkgs = true;
-              useUserPackages = true;
-              sharedModules = [
-                inputs.sops-nix.homeManagerModules.sops
-                inputs.zen-browser.homeModules.default
-              ];
-              extraSpecialArgs = {
-                inherit inputs pkgs-unstable;
-              };
-              users = lib.genAttrs users (user: import ./users/${user}/home.nix);
-            };
-          };
-
-          # Build a host configuration
-          mkHost =
-            {
-              hostPath,
-              users ? [ "javad" ],
-              desktop ? true,
-            }:
-            nixpkgs.lib.nixosSystem {
-              system = "x86_64-linux";
-              specialArgs = {
-                inherit inputs pkgs-unstable;
-              };
-              modules = [
-                hostPath
-              ]
-              ++ [ ./hosts/common ]
-              ++ lib.optionals desktop [ ./hosts/common/desktop.nix ]
-              ++ map (user: ./users/${user}/default.nix) users
-              ++ [ (mkHomeManagerUsers users) ];
-            };
-
-          # Auto-discover hosts from hosts/ directory
-          # Each subdirectory with a default.nix becomes a host
-          hostDirs = builtins.readDir ./hosts;
-
-          isHostDir =
-            name: type:
-            type == "directory" && name != "common" && builtins.pathExists (./hosts + "/${name}/default.nix");
-
-          discoveredHosts = lib.filterAttrs isHostDir hostDirs;
-
-          # Generate nixosConfigurations for each discovered host
-          autoHosts = lib.mapAttrs (
-            name: _:
-            mkHost {
-              hostPath = ./hosts + "/${name}";
-              users = [ "javad" ];
-            }
-          ) discoveredHosts;
-
-        in
-        {
-          homeConfigurations = {
-            javad = home-manager.lib.homeManagerConfiguration {
-              pkgs = nixpkgs.legacyPackages.x86_64-linux;
-              extraSpecialArgs = {
-                inherit inputs pkgs-unstable;
-              };
-              modules = [
-                inputs.sops-nix.homeManagerModules.sops
-                inputs.zen-browser.homeModules.default
-                ./users/javad/home.nix
-              ];
-            };
-          };
-
-          # Auto-discovered hosts + special configs
-          nixosConfigurations = autoHosts // {
-            # ISO installer (not a regular host)
+        nixosConfigurations =
+          let
+            hostConfigs = lib.genAttrs hosts (name: mkHost name { });
+            # Hosts to include in full ISO (exclude CI-only hosts)
+            isoHosts = lib.filter (name: name != "gha") hosts;
+          in
+          hostConfigs
+          // {
+            # Full ISO with all host closures for offline install
             iso = nixpkgs.lib.nixosSystem {
-              system = "x86_64-linux";
-              specialArgs = {
-                inherit inputs pkgs-unstable;
-              };
+              inherit system specialArgs;
+              modules = [
+                ./modules/profiles/iso
+                (
+                  { pkgs, lib, ... }:
+                  let
+                    hostClosures = builtins.listToAttrs (
+                      map (name: {
+                        inherit name;
+                        value = hostConfigs.${name}.config.system.build.toplevel;
+                      }) isoHosts
+                    );
+                    # Static estimates (GB) - conservative values
+                    closureSizes = pkgs.runCommand "closure-sizes" { } ''
+                      mkdir -p $out
+                      ${lib.concatStringsSep "\n" (map (name: "echo 35 > $out/${name}") isoHosts)}
+                    '';
+                  in
+                  {
+                    isoImage.storeContents = lib.attrValues hostClosures;
+                    environment.etc."nixpille/closure-sizes".source = closureSizes;
+                  }
+                )
+              ];
+            };
+            # Minimal ISO for quick testing (no host closures)
+            iso-minimal = nixpkgs.lib.nixosSystem {
+              inherit system specialArgs;
               modules = [ ./modules/profiles/iso ];
             };
           };
-        };
+      };
 
       perSystem =
-        { pkgs, ... }:
+        { pkgs, self', ... }:
         {
           formatter = pkgs.nixfmt-tree;
-          checks = import ./tests { inherit pkgs self; };
+          checks = import ./ops/tests {
+            inherit pkgs;
+            self = inputs.self;
+          };
         };
     };
 }

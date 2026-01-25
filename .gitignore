@@ -7,7 +7,9 @@ result-*
 
 # Ignore VM output
 *.qcow2
-
-# Secrets - stored in Bitwarden, NOT in git
-secrets/secrets.yaml
 *.img
+
+# IDE settings
+.idea/
+.vscode/
+*.swp

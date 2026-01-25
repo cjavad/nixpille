@@ -1,5 +1,0 @@
-{
-    "yaml.schemas": {
-        "https://taskfile.dev/schema.json": "file:///home/javad/Dev/nixpille/tasks/secrets.yml"
-    }
-}

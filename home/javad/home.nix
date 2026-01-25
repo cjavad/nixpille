@@ -1,4 +1,3 @@
-# Home-manager entry point for javad
 {
   pkgs,
   inputs,
@@ -53,5 +52,4 @@
     home-manager
     gnupg
   ];
-
 }

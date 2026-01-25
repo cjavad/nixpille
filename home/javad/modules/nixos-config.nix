@@ -1,4 +1,3 @@
-# Deploys a copy of this repo to ~/Dev/nixpille on first boot
 { pkgs, lib, ... }:
 
 let

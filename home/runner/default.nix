@@ -1,4 +1,3 @@
-# NixOS user definition for runner (CI/GHA)
 { pkgs, ... }:
 
 {

@@ -1,4 +1,3 @@
-# Desktop environment configuration
 { pkgs, ... }:
 
 {

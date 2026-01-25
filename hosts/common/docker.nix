@@ -1,4 +1,3 @@
-# Docker configuration
 { pkgs, ... }:
 
 {

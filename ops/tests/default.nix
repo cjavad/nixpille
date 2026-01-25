@@ -1,7 +1,6 @@
 { pkgs, self }:
 
 {
-  # Basic sanity check
   smoke = pkgs.runCommandLocal "smoke-test" { } ''
     echo "=== nixpille smoke test ==="
     echo "Hello from nixpille!"

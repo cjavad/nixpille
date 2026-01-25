@@ -12,6 +12,6 @@ printf '%s\n' \
     "  ssh = builtins.fromJSON ''$SSH'';" \
     "  wg = builtins.fromJSON ''$WG'';" \
     "  gpg = builtins.fromJSON ''$GPG'';" \
-    '}' > secrets/manifest.nix
+    '}' > ops/secrets/manifest.nix
 
-echo "Generated secrets/manifest.nix"
+echo "Generated ops/secrets/manifest.nix"
