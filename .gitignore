@@ -10,3 +10,4 @@ result-*
 
 # Secrets - stored in Bitwarden, NOT in git
 secrets/secrets.yaml
+*.img
