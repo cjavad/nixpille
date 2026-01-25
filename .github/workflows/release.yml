@@ -11,10 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: DeterminateSystems/nix-installer-action@main
-
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: ./.github/actions/setup-nix
 
       - name: Build ISO
         run: nix build .#nixosConfigurations.iso.config.system.build.isoImage

@@ -8,7 +8,6 @@
 {
   imports = [
     (modulesPath + "/installer/cd-dvd/installation-cd-minimal.nix")
-    ../core/caches.nix
   ];
 
   boot.supportedFilesystems.zfs = lib.mkForce false;

@@ -8,6 +8,9 @@ vars:
   BW:
     sh: 'echo "${BW:-bw}"'
   BW_ITEM: nixpille-secrets
+  EXTRA_SUBSTITUTERS: https://hyprland.cachix.org https://nix-community.cachix.org https://vicinae.cachix.org
+  EXTRA_TRUSTED_KEYS: hyprland.cachix.org-1:a7pgxzMz7+VO9dXvamGIBD/FX5BsGNN7CQ56MWRspLU= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= vicinae.cachix.org-1:1kDrfienkGHPYbkpNj1mWTr7Fm1+zcenzgTizIcI3oc=
+  NIX_FLAGS: --extra-substituters "{{.EXTRA_SUBSTITUTERS}}" --extra-trusted-public-keys "{{.EXTRA_TRUSTED_KEYS}}"
 
 includes:
   secrets:
@@ -22,7 +25,7 @@ tasks:
   vm:
     desc: Build and run VM
     cmds:
-      - nix build .#nixosConfigurations.{{.HOST}}.config.system.build.vm
+      - nix build {{.NIX_FLAGS}} .#nixosConfigurations.{{.HOST}}.config.system.build.vm
       - ./result/bin/run-{{.HOST}}-vm
 
   vm:rm:
@@ -33,7 +36,7 @@ tasks:
   switch:
     desc: Switch to new config
     cmds:
-      - sudo nixos-rebuild switch --flake .#{{.HOST}}
+      - sudo nixos-rebuild switch {{.NIX_FLAGS}} --flake .#{{.HOST}}
 
   check:
     desc: Check flake
@@ -43,7 +46,7 @@ tasks:
   test:
     desc: Run tests
     cmds:
-      - nix build .#checks.x86_64-linux.smoke -L
+      - nix build {{.NIX_FLAGS}} .#checks.x86_64-linux.smoke -L
 
   fmt:
     desc: Format nix files
@@ -68,7 +71,7 @@ tasks:
   iso:
     desc: Build installer ISO
     cmds:
-      - nix build .#nixosConfigurations.iso.config.system.build.isoImage
+      - nix build {{.NIX_FLAGS}} .#nixosConfigurations.iso.config.system.build.isoImage
       - echo "ISO at ./result/iso/*.iso"
 
   release:

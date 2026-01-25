@@ -11,10 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: DeterminateSystems/nix-installer-action@main
-
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: ./.github/actions/setup-nix
 
       - name: Flake check (runs all checks)
         run: nix flake check
@@ -24,10 +21,7 @@ jobs:
     needs: check
     steps:
       - uses: actions/checkout@v4
-
-      - uses: DeterminateSystems/nix-installer-action@main
-
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: ./.github/actions/setup-nix
 
       - name: Smoke test
         run: nix build .#checks.x86_64-linux.smoke -L
@@ -49,10 +43,7 @@ jobs:
     needs: check
     steps:
       - uses: actions/checkout@v4
-
-      - uses: DeterminateSystems/nix-installer-action@main
-
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: ./.github/actions/setup-nix
 
       - name: Build VM config
         run: nix build .#nixosConfigurations.vm.config.system.build.toplevel --dry-run
