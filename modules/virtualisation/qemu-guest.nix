@@ -12,8 +12,9 @@
   boot.loader.grub.enable = lib.mkForce false;
 
   virtualisation.memorySize = 4096;
-  virtualisation.diskSize = 2048;
+  virtualisation.diskSize = 4096;
   virtualisation.cores = 4;
+  virtualisation.writableStoreUseTmpfs = false;
 
   virtualisation.qemu.options = [
     "-display"

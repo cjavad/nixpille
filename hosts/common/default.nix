@@ -33,7 +33,10 @@
   nixpkgs.config.allowUnfree = true;
   boot.kernelPackages = pkgs.linuxPackages_zen;
 
-  boot.kernelParams = [ "quiet" "splash" ];
+  boot.kernelParams = [
+    "quiet"
+    "splash"
+  ];
   boot.kernel.sysctl = {
     "vm.swappiness" = 10;
     "vm.vfs_cache_pressure" = 50;

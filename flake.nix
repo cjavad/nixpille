@@ -65,13 +65,14 @@
             nixpkgs.lib.nixosSystem {
               system = "x86_64-linux";
               specialArgs = { inherit inputs; };
-              modules =
-                [ hostPath ]
-                ++ [ ./hosts/common ]
-                ++ lib.optionals desktop [ ./hosts/common/desktop.nix ]
-                ++ lib.optionals dev [ ./hosts/common/development.nix ]
-                ++ map (user: ./users/${user}/default.nix) users
-                ++ [ (mkHomeManagerUsers users) ];
+              modules = [
+                hostPath
+              ]
+              ++ [ ./hosts/common ]
+              ++ lib.optionals desktop [ ./hosts/common/desktop.nix ]
+              ++ lib.optionals dev [ ./hosts/common/development.nix ]
+              ++ map (user: ./users/${user}/default.nix) users
+              ++ [ (mkHomeManagerUsers users) ];
             };
         in
         {
