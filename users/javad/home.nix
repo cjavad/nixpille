@@ -50,6 +50,8 @@
 
   home.packages = with pkgs; [
     gh
+    home-manager
+    gnupg
   ];
 
 }

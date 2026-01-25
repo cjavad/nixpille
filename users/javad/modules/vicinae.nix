@@ -21,6 +21,7 @@
       font_family = "JetBrainsMono Nerd Font";
       font_size = 14;
       theme = "catppuccin-mocha";
+      window_width = 800;
     };
 
     themes.catppuccin-mocha = {
@@ -54,5 +55,16 @@
     };
 
     extensions = [ ];
+  };
+
+  # Systemd service dependencies (uwsm activates graphical-session.target)
+  systemd.user.services.vicinae = {
+    Unit = {
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+    };
+    Install = {
+      WantedBy = [ "graphical-session.target" ];
+    };
   };
 }

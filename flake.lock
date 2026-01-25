@@ -39,11 +39,11 @@
       },
       "locked": {
         "dir": "pkgs/firefox-addons",
-        "lastModified": 1769270698,
-        "narHash": "sha256-hS2AmHOlPT/J2BEWpxeTFf0TG1C1K7OHqgoOcG8Ug1I=",
+        "lastModified": 1769313844,
+        "narHash": "sha256-T81qcP3JeGUfLxzmozKF/cyQbFABloh0bZmMgwJ+mgU=",
         "owner": "rycee",
         "repo": "nur-expressions",
-        "rev": "e2f88a4703a62986d4f2f4024a499c788dc984ed",
+        "rev": "0380f0dff1dd819047f431f1a090567fc2fde2e8",
         "type": "gitlab"
       },
       "original": {
@@ -622,11 +622,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1768863606,
-        "narHash": "sha256-1IHAeS8WtBiEo5XiyJBHOXMzECD6aaIOJmpQKzRRl64=",
+        "lastModified": 1769314333,
+        "narHash": "sha256-+Uvq9h2eGsbhacXpuS7irYO7fFlz514nrhPCSTkASlw=",
         "owner": "Mic92",
         "repo": "sops-nix",
-        "rev": "c7067be8db2c09ab1884de67ef6c4f693973f4a2",
+        "rev": "2eb9eed7ef48908e0f02985919f7eb9d33fa758f",
         "type": "github"
       },
       "original": {
@@ -671,15 +671,16 @@
         "systems": "systems_2"
       },
       "locked": {
-        "lastModified": 1769300932,
-        "narHash": "sha256-vQkA9qdJDnXWB1REhU1NNVTzkPB3DiKzNmGtgjpKHv8=",
+        "lastModified": 1768776039,
+        "narHash": "sha256-08SgAPfuyKu+Z1TVWHLYVgFZj22or7d1BnBda1/Qsag=",
         "owner": "vicinaehq",
         "repo": "vicinae",
-        "rev": "519044a921a5a88a61d263e102bdef15c6b1c060",
+        "rev": "643fbac592c56daaedc3c27518d64a40d15d77f0",
         "type": "github"
       },
       "original": {
         "owner": "vicinaehq",
+        "ref": "v0.19.0",
         "repo": "vicinae",
         "type": "github"
       }

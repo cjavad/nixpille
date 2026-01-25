@@ -1,9 +1,18 @@
-# Desktop environment configuration (Hyprland, SDDM, etc.)
+# Desktop environment configuration
+{ pkgs, ... }:
+
 {
   imports = [
-    ../../modules/core/security.nix
+    ./audio.nix
     ../../modules/desktop/hyprland.nix
     ../../modules/desktop/sddm.nix
-    ../../modules/desktop/flatpak.nix
+  ];
+
+  fonts.packages = with pkgs; [
+    noto-fonts
+    noto-fonts-cjk-sans
+    noto-fonts-color-emoji
+    nerd-fonts.jetbrains-mono
+    nerd-fonts.fira-code
   ];
 }

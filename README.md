@@ -40,9 +40,10 @@ Naming: `ssh_<file>`, `wg_<name>`, `gpg_<name>` → auto-deployed on rebuild.
 ```
 hosts/              # Machine configs
 modules/            # NixOS modules
-  secrets/          # sops-nix deployment (auto-generated manifest.nix)
-home/modules/       # Home-manager modules
-dotfiles/           # Config files (mutable via symlinks)
+users/              # Home-manager user configs
+secrets/            # sops secrets
+scripts/            # Shell scripts
+tasks/              # Taskfile includes
 ```
 
 ## Adding a Host

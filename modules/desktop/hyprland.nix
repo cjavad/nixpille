@@ -11,13 +11,18 @@
     package = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.hyprland;
     portalPackage =
       inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.xdg-desktop-portal-hyprland;
+    # withUWSM = true automatically enables programs.uwsm and configures it
+    withUWSM = true;
   };
+
+  # Note: programs.uwsm is auto-configured by withUWSM = true
+  # Do not manually set waylandCompositors - it conflicts with the auto-config
 
   environment.sessionVariables = {
     XDG_CURRENT_DESKTOP = "Hyprland";
     XDG_SESSION_TYPE = "wayland";
     XDG_SESSION_DESKTOP = "Hyprland";
-    MOZ_ENABLE_WAYLAND = "1"; # For Firefox/Zen
+    MOZ_ENABLE_WAYLAND = "1";
   };
 
   xdg.portal = {
@@ -25,22 +30,27 @@
     extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
   };
 
-  environment.systemPackages = with pkgs; [
-    brightnessctl # needs system-level udev rules
-  ];
+  # Hyprland-specific security
+  security.pam.services.hyprlock = { };
 
-  services.pipewire = {
-    enable = true;
-    alsa.enable = true;
-    alsa.support32Bit = true;
-    pulse.enable = true;
+  # Polkit agent for Hyprland (runs as systemd user service)
+  systemd.user.services.hyprpolkitagent = {
+    description = "Hyprland Polkit Authentication Agent";
+    wantedBy = [ "graphical-session.target" ];
+    wants = [ "graphical-session.target" ];
+    after = [ "graphical-session.target" ];
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent";
+      Restart = "on-failure";
+      RestartSec = 1;
+      TimeoutStopSec = 10;
+    };
   };
 
-  fonts.packages = with pkgs; [
-    noto-fonts
-    noto-fonts-cjk-sans
-    noto-fonts-color-emoji
-    nerd-fonts.jetbrains-mono
-    nerd-fonts.fira-code
+  environment.systemPackages = with pkgs; [
+    brightnessctl
+    hyprlock
+    hyprpolkitagent
   ];
 }

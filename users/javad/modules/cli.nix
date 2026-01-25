@@ -38,6 +38,9 @@
     age
     bitwarden-cli
 
+    # Networking
+    wireguard-tools
+
     # Media CLI
     ffmpeg
 

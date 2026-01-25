@@ -24,6 +24,7 @@
   };
 
   programs.fish.enable = true;
+  services.flatpak.enable = true;
 
   # Cursed: first user wins /etc/nixos. Others use --flake explicitly.
   systemd.tmpfiles.rules = [

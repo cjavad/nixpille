@@ -37,10 +37,10 @@ in
     chmod 700 "${home}/.ssh" "${home}/.kube" "${home}/.gnupg" "${home}/.config/wireguard"
   '';
 
-  home.activation.gpgImport = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+  home.activation.gpgImport = lib.hm.dag.entryAfter [ "sopsInstallSecrets" ] ''
     ${lib.concatMapStrings (name: ''
       if [ -f "${config.sops.secrets.${name}.path}" ]; then
-        ${pkgs.gnupg}/bin/gpg --batch --import "${config.sops.secrets.${name}.path}" 2>/dev/null || true
+        ${pkgs.gnupg}/bin/gpg --batch --import "${config.sops.secrets.${name}.path}" || true
       fi
     '') gpgSecretNames}
   '';

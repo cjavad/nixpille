@@ -48,12 +48,15 @@ let
   };
 in
 {
-  services.displayManager.sddm = {
-    enable = true;
-    wayland.enable = true;
-    theme = "sddm-astronaut-theme";
-    extraPackages = [ sddmTheme ];
-    settings.Theme.CursorTheme = "capitaine-cursors";
+  services.displayManager = {
+    defaultSession = "hyprland-uwsm";
+    sddm = {
+      enable = true;
+      wayland.enable = true;
+      theme = "sddm-astronaut-theme";
+      extraPackages = [ sddmTheme ];
+      settings.Theme.CursorTheme = "capitaine-cursors";
+    };
   };
 
   environment.systemPackages = [

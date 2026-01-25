@@ -11,7 +11,7 @@
     };
 
     hyprland.url = "github:hyprwm/Hyprland";
-    vicinae.url = "github:vicinaehq/vicinae";
+    vicinae.url = "github:vicinaehq/vicinae/v0.19.0";
     zen-browser.url = "github:0xc000022070/zen-browser-flake";
     firefox-addons.url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
     nix-flatpak.url = "github:gmodena/nix-flatpak";
@@ -60,7 +60,6 @@
               hostPath,
               users,
               desktop ? true,
-              dev ? true,
             }:
             nixpkgs.lib.nixosSystem {
               system = "x86_64-linux";
@@ -70,12 +69,23 @@
               ]
               ++ [ ./hosts/common ]
               ++ lib.optionals desktop [ ./hosts/common/desktop.nix ]
-              ++ lib.optionals dev [ ./hosts/common/development.nix ]
               ++ map (user: ./users/${user}/default.nix) users
               ++ [ (mkHomeManagerUsers users) ];
             };
         in
         {
+          homeConfigurations = {
+            javad = home-manager.lib.homeManagerConfiguration {
+              pkgs = nixpkgs.legacyPackages.x86_64-linux;
+              extraSpecialArgs = { inherit inputs; };
+              modules = [
+                inputs.sops-nix.homeManagerModules.sops
+                inputs.zen-browser.homeModules.default
+                ./users/javad/home.nix
+              ];
+            };
+          };
+
           nixosConfigurations = {
             vm = mkHost {
               hostPath = ./hosts/vm;
