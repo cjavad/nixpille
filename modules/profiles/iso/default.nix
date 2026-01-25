@@ -1,8 +1,6 @@
-# nixpille ISO - Installer and Live Desktop
+# nixpille ISO - Minimal installer
 #
-# Boot menu options:
-# - Install NixOS: Boots to TTY and auto-runs installer
-# - Live Desktop: Boots into full Hyprland desktop (same as installed system)
+# Boots to TTY with autologin and MOTD
 {
   config,
   pkgs,
@@ -20,8 +18,6 @@ in
 {
   imports = [
     (modulesPath + "/installer/cd-dvd/installation-cd-minimal.nix")
-    # Shared configurations (same as regular hosts)
-    ../../../hosts/common/desktop.nix
     ../../cache
   ];
 
@@ -51,7 +47,15 @@ in
   # Live User (same setup as javad)
   # ===========================================
 
-  programs.fish.enable = true;
+  programs.fish = {
+    enable = true;
+    interactiveShellInit = ''
+      # Display MOTD on login
+      if test -e /etc/motd; and status is-login
+        cat /etc/motd
+      end
+    '';
+  };
 
   users.users.nixos = {
     isNormalUser = true;
@@ -63,20 +67,16 @@ in
       "audio"
     ];
     initialHashedPassword = "";
-    shell = pkgs.fish;
+    shell = lib.mkForce pkgs.fish;
   };
 
   security.sudo.wheelNeedsPassword = false;
 
   # ===========================================
-  # Display Manager - Conditional on boot mode
+  # TTY Autologin
   # ===========================================
 
-  # Override SDDM to auto-login for live session
-  services.displayManager.autoLogin = {
-    enable = true;
-    user = "nixos";
-  };
+  services.getty.autologinUser = "nixos";
 
   # ===========================================
   # System Packages
@@ -101,7 +101,6 @@ in
     # Networking
     curl
     wget
-    networkmanagerapplet
 
     # Utilities
     pciutils
@@ -109,12 +108,6 @@ in
     htop
     file
     unzip
-
-    # Extra desktop apps for live session
-    pavucontrol
-    firefox
-    nautilus
-    fuzzel
   ];
 
   # ===========================================
@@ -124,11 +117,7 @@ in
   # Include disko config
   environment.etc."nixpille/disko/standard.nix".source = ../../disko/standard.nix;
 
-  # Link javad's dotfiles for the live user
-  environment.etc."skel/.config/hypr".source = ../../../users/javad/dotfiles/hypr;
-  environment.etc."skel/.config/waybar".source = ../../../users/javad/dotfiles/waybar;
-  environment.etc."skel/.config/kitty".source = ../../../users/javad/dotfiles/kitty;
-  environment.etc."skel/.config/mako".source = ../../../users/javad/dotfiles/mako;
+  # Fish shell config
   environment.etc."skel/.config/fish".source = ../../../users/javad/dotfiles/fish;
 
   # Copy dotfiles to live user home
@@ -148,12 +137,10 @@ in
     ║                                                              ║
     ║  To install NixOS, run: nixpille-install                     ║
     ║                                                              ║
-    ║  Keybindings:                                                ║
-    ║    ALT+Return    - Terminal                                  ║
-    ║    ALT+Space     - Vicinae launcher                          ║
-    ║    ALT+Q         - Close window                              ║
-    ║    ALT+1-9       - Switch workspace                          ║
-    ║    ALT+Shift     - Toggle keyboard layout (dk/us)            ║
+    ║  Useful commands:                                            ║
+    ║    nmtui           - Configure network                       ║
+    ║    htop            - System monitor                          ║
+    ║    lsblk           - List disks                              ║
     ║                                                              ║
     ╚══════════════════════════════════════════════════════════════╝
 

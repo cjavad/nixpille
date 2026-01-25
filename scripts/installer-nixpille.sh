@@ -219,22 +219,32 @@ install_mode() {
     --arg device "\"$device\"" \
     /etc/nixpille/disko/standard.nix
 
-  # 6. Generate hardware.nix
-  info "Generating hardware config..."
+  # 6. Generate hardware.nix for installed system
   sudo mkdir -p /mnt/etc/nixpille/hosts/$hostname
-  sudo nixos-generate-config --root /mnt --show-hardware-config > /tmp/hardware.nix
-  sudo cp /tmp/hardware.nix /mnt/etc/nixpille/hosts/$hostname/
+
+  # Reuse manually generated config if available, otherwise generate fresh
+  if [[ -f "/tmp/nixpille-hosts/$hostname/hardware.nix" ]]; then
+    info "Using existing hardware config..."
+    sudo cp "/tmp/nixpille-hosts/$hostname/hardware.nix" /mnt/etc/nixpille/hosts/$hostname/
+  else
+    info "Generating hardware config..."
+    sudo nixos-generate-config --root /mnt --show-hardware-config > /tmp/hardware.nix
+    sudo cp /tmp/hardware.nix /mnt/etc/nixpille/hosts/$hostname/
+  fi
 
   # 7. Install
   info "Installing NixOS..."
 
-  # Check if host exists in repo, otherwise use vm as base
-  if nix eval --raw "$REPO_URL#nixosConfigurations.$hostname" 2>/dev/null; then
-    sudo nixos-install --flake "$REPO_URL#$hostname" --no-root-passwd
+  # Check if host exists in repo
+  local host_exists
+  host_exists=$(nix eval --json "$REPO_URL#nixosConfigurations" --apply "x: builtins.hasAttr \"$hostname\" x" 2>/dev/null || echo "false")
+
+  if [[ "$host_exists" == "true" ]]; then
+    sudo nixos-install $NIX_FLAGS --flake "$REPO_URL#$hostname" --no-root-passwd
   else
     $DIALOG --backtitle "$BACKTITLE" --msgbox \
       "Host '$hostname' not in repo yet.\n\nInstalling with 'vm' base.\nAfter boot, add hosts/$hostname/ to repo and rebuild." 10 55
-    sudo nixos-install --flake "$REPO_URL#vm" --no-root-passwd
+    sudo nixos-install $NIX_FLAGS --flake "$REPO_URL#vm" --no-root-passwd
   fi
 
   # 8. Set password
