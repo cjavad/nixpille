@@ -10,10 +10,13 @@ let
   home = config.home.homeDirectory;
   runtime = "/run/user/1000";
   # Filter out empty strings from manifest lists
-  filterEmpty = list: builtins.filter (s: s != "") (if list == null then [] else list);
+  filterEmpty = list: builtins.filter (s: s != "") (if list == null then [ ] else list);
 in
 {
-  home.packages = with pkgs; [ sops age ];
+  home.packages = with pkgs; [
+    sops
+    age
+  ];
 
   sops = {
     defaultSopsFile = "${home}/.config/sops/secrets.yaml";
@@ -30,7 +33,9 @@ in
       // lib.genAttrs (map (n: "wg_${n}") (filterEmpty manifest.wg)) (key: {
         path = "${runtime}/wireguard/${lib.removePrefix "wg_" key}.conf";
       })
-      // { kubeconfig.path = "${runtime}/kube/config"; };
+      // {
+        kubeconfig.path = "${runtime}/kube/config";
+      };
   };
 
   # Ensure sops-nix waits for age key to be exported from keyring
