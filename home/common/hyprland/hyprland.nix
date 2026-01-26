@@ -65,7 +65,7 @@ in
         gaps_out = 6;
         border_size = 1;
         layout = "dwindle";
-        "col.active_border" = lib.mkForce "rgba(89b4fa40)"; # Semi-transparent blue (OLED)
+        "col.active_border" = lib.mkForce "rgba(00000000)"; # Fully transparent (OLED)
         "col.inactive_border" = lib.mkForce "rgba(00000000)"; # Fully transparent (OLED)
       };
 

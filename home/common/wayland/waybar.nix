@@ -265,8 +265,9 @@
       }
 
       #workspaces button.active {
-        background-color: rgba(137, 180, 250, 0.8);
-        color: #000000;
+        background-color: transparent;
+        color: #cdd6f4;
+        font-weight: bold;
       }
 
       #workspaces button.urgent {
