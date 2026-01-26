@@ -9,6 +9,7 @@
   zramSwap.enable = true;
   services.tlp.enable = true;
   services.fwupd.enable = true;
+  services.libinput.enable = true;
 
   services.btrfs.autoScrub = {
     enable = true;

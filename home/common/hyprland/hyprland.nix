@@ -33,7 +33,7 @@ in
 
     settings = {
       # Monitor - scale can be overridden per-host
-      monitor = [ ",preferred,auto,1.5" ];
+      monitor = [ ",preferred,auto,1.6" ];
 
       # Environment
       env = [
@@ -51,6 +51,9 @@ in
         sensitivity = 0;
         touchpad = {
           natural_scroll = true;
+        };
+        touchdevice = {
+          enabled = true;
         };
       };
 
