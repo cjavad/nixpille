@@ -132,6 +132,23 @@
               modules = [ ./modules/profiles/iso ];
             };
           };
+
+        homeConfigurations =
+          let
+            pkgs = nixpkgs.legacyPackages.${system};
+            mkHome =
+              host:
+              home-manager.lib.homeManagerConfiguration {
+                inherit pkgs;
+                extraSpecialArgs = specialArgs;
+                modules = homeModules ++ [
+                  ./home/javad/${host}
+                  inputs.stylix.homeModules.stylix
+                  inputs.sops-nix.homeManagerModules.sops
+                ];
+              };
+          in
+          lib.genAttrs hosts (host: mkHome host);
       };
 
       perSystem =

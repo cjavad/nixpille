@@ -34,7 +34,6 @@ rec {
       };
 
       environment.etc."nixpille/cache.env".text = ''
-        # Informational only - caches are configured via flake.nix nixConfig
         EXTRA_SUBSTITUTERS="${lib.concatStringsSep " " substituters}"
         EXTRA_TRUSTED_KEYS="${lib.concatStringsSep " " trustedPublicKeys}"
       '';

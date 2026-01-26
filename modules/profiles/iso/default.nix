@@ -29,7 +29,10 @@ in
   i18n.defaultLocale = "en_US.UTF-8";
 
   # Nix settings
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
+  ];
 
   # Network
   networking.networkmanager.enable = true;
@@ -41,7 +44,12 @@ in
   # Live user
   users.users.nixos = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" "video" "audio" ];
+    extraGroups = [
+      "wheel"
+      "networkmanager"
+      "video"
+      "audio"
+    ];
     initialHashedPassword = "";
     shell = lib.mkForce pkgs.fish;
   };

@@ -25,6 +25,16 @@ function log
     echo "["(date '+%H:%M:%S')"] $argv" >> $LOG_FILE
 end
 
+function source_env
+    # Source bash-style VAR=value env files in fish
+    for line in (grep -v '^#' $argv[1] | grep '=')
+        set -l key (string split -m1 '=' $line)[1]
+        set -l val (string split -m1 '=' $line)[2]
+        set -l val (string trim -c '"' $val)
+        set -gx $key $val
+    end
+end
+
 function show_log
     $DIALOG --backtitle "$BACKTITLE" --title "Install Log" --textbox $LOG_FILE 22 78
 end
@@ -252,7 +262,7 @@ function execute_install
 
     # 1. Partition
     log "=== Partitioning ==="
-    if not sudo nix run github:nix-community/disko -- --mode disko --arg device "\"$device\"" /etc/nixpille/disko/standard.nix
+    if not sudo nix run github:nix-community/disko -- --mode destroy,format,mount --arg device "\"$device\"" /etc/nixpille/disko/standard.nix
         ui_error "Partitioning failed"
         return $STATUS_ERROR
     end
@@ -299,7 +309,7 @@ function execute_install
     log "=== Installing ==="
     set -l opts
     if test -f /etc/nixpille/cache.env
-        source /etc/nixpille/cache.env
+        source_env /etc/nixpille/cache.env
         test -n "$EXTRA_SUBSTITUTERS"; and set -a opts --option extra-substituters "$EXTRA_SUBSTITUTERS"
         test -n "$EXTRA_TRUSTED_KEYS"; and set -a opts --option extra-trusted-public-keys "$EXTRA_TRUSTED_KEYS"
     end
