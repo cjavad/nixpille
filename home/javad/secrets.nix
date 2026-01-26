@@ -27,6 +27,11 @@ in
 
     secrets = {
       github_token.path = "${runtime}/nix/github-token";
+      kopia_url.path = "${runtime}/kopia/url";
+      kopia_username.path = "${runtime}/kopia/username";
+      kopia_password.path = "${runtime}/kopia/password";
+      docker_ghcr_auth.path = "${runtime}/docker/ghcr-auth";
+      docker_hub_auth.path = "${runtime}/docker/hub-auth";
     };
   };
 
@@ -41,8 +46,8 @@ in
   home.activation.secretsDirs = lib.hm.dag.entryBefore [ "checkLinkTargets" ] ''
     mkdir -p "${home}/.ssh" "${home}/.kube" "${home}/.gnupg"
     chmod 700 "${home}/.ssh" "${home}/.kube" "${home}/.gnupg"
-    mkdir -p "${runtime}/nix"
-    chmod 700 "${runtime}/nix"
+    mkdir -p "${runtime}/nix" "${runtime}/kopia" "${runtime}/docker"
+    chmod 700 "${runtime}/nix" "${runtime}/kopia" "${runtime}/docker"
   '';
 
   # SSH config - include hosts.conf from tmpfs (pulled from BW)

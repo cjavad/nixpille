@@ -20,7 +20,7 @@ in
 
   boot.supportedFilesystems.zfs = lib.mkForce false;
   boot.kernelPackages = pkgs.linuxPackages_latest;
-  isoImage.squashfsCompression = "gzip -Xcompression-level 1";
+  isoImage.squashfsCompression = "zstd -Xcompression-level 19";
   image.baseName = lib.mkForce "nixpille";
   nixpkgs.config.allowUnfree = true;
 
