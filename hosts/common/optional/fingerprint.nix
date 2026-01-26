@@ -15,8 +15,8 @@
 
   # PAM integration for fingerprint auth
   security.pam.services = {
-    # Login manager
-    sddm.fprintAuth = true;
+    # GDM login (fingerprint works natively with GDM)
+    gdm-password.fprintAuth = true;
 
     # Screen locker
     hyprlock.fprintAuth = true;

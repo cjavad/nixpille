@@ -11,16 +11,31 @@ let
   runtime = "/run/user/1000";
 in
 {
-  imports = [ inputs.sops-nix.homeManagerModules.sops ];
+  imports = [
+    ../common/secrets
+    inputs.sops-nix.homeManagerModules.sops
+  ];
+
+  # Enable secrets management
+  services.secrets = {
+    enable = true;
+    runtimeDir = runtime;
+    keyringService = "nixpille";
+    gpgAgent = {
+      enable = true;
+      pinentryPackage = pkgs.pinentry-qt;
+      defaultCacheTtl = 3600;
+      maxCacheTtl = 86400;
+    };
+  };
 
   home.packages = with pkgs; [
     sops
     age
   ];
 
+  # sops-nix for rotatable secrets (API tokens etc)
   sops = {
-    # Only API tokens in sops (rotatable, safe in git)
-    # Identity files (SSH, GPG) and configs (WG, kube, hosts) are in BW
     defaultSopsFile = ../../hosts/common/secrets/secrets.yaml;
     age.keyFile = "${runtime}/sops/keys.txt";
     validateSopsFiles = false;
@@ -43,6 +58,7 @@ in
     };
   };
 
+  # Create necessary directories
   home.activation.secretsDirs = lib.hm.dag.entryBefore [ "checkLinkTargets" ] ''
     mkdir -p "${home}/.ssh" "${home}/.kube" "${home}/.gnupg"
     chmod 700 "${home}/.ssh" "${home}/.kube" "${home}/.gnupg"

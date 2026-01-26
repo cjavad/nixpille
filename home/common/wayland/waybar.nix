@@ -11,9 +11,9 @@ let
             printf '{"text": "%s", "class": "clock", "tooltip": "%s"}\n' \
                 "$(date +"%H:%M")" "$(date +"%A, %d %B %Y")"
         elif [[ "$submap" == "screenshot" ]]; then
-            printf '{"text": "  P    O    P    O", "class": "screenshot", "tooltip": "P=area O=full  ⇧=clipboard  Esc=exit"}\n'
+            printf '{"text": "󰩭 Area (P), 󰍹 Full (O), ⇧=clip", "class": "screenshot", "tooltip": "P: area screenshot\\nO: fullscreen\\n+Shift: clipboard only\\nEsc: exit"}\n'
         elif [[ "$submap" == "recording" ]]; then
-            printf '{"text": "  R    R", "class": "recording", "tooltip": "R=record  ⇧R=with audio  Esc=exit"}\n'
+            printf '{"text": "󰻃 Record (R), 󰍬 +Audio (⇧R)", "class": "recording", "tooltip": "R: record screen\\nShift+R: record with audio\\nEsc: exit"}\n'
         else
             printf '{"text": " %s", "class": "submap", "tooltip": "Submap: %s"}\n' "$submap" "$submap"
         fi

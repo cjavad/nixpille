@@ -6,9 +6,6 @@ vars:
     sh: 'h=$(hostname); case $h in ideapad|p1gen8|vm) echo $h;; *) echo vm;; esac'
 
 includes:
-  secrets:
-    taskfile: ./ops/secrets/Taskfile.yml
-    dir: .
   monitors:
     taskfile: ./ops/monitors/Taskfile.yml
     dir: .
@@ -104,3 +101,55 @@ tasks:
     desc: Build home-manager config
     cmds:
       - home-manager build --flake .
+
+  # === Secrets ===
+  secrets:
+    desc: Run secrets CLI (use 'task secrets -- <command>')
+    cmds:
+      - secrets {{.CLI_ARGS}}
+
+  secrets:setup:
+    desc: First-time setup (login + pull all secrets)
+    cmds:
+      - secrets login
+      - secrets pull
+
+  secrets:pull:
+    desc: Pull all secrets from Bitwarden
+    cmds:
+      - secrets pull
+
+  secrets:status:
+    desc: Show secrets status
+    cmds:
+      - secrets status
+
+  secrets:login:
+    desc: Login/unlock Bitwarden
+    cmds:
+      - secrets login
+
+  secrets:lock:
+    desc: Lock and clear secrets
+    cmds:
+      - secrets lock
+
+  secrets:export:
+    desc: Export from keyring (offline)
+    cmds:
+      - secrets export
+
+  secrets:sync:
+    desc: Sync files to Bitwarden
+    cmds:
+      - secrets sync
+
+  sops:edit:
+    desc: Edit sops secrets file
+    cmds:
+      - secrets sops edit ./hosts/common/secrets/secrets.yaml
+
+  sops:show:
+    desc: Show decrypted sops secrets
+    cmds:
+      - secrets sops show ./hosts/common/secrets/secrets.yaml
