@@ -65,7 +65,6 @@ in
     installScript
     dialog
     git
-    vim
     neovim
     parted
     gptfdisk

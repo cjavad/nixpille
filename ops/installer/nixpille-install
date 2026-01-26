@@ -1,11 +1,5 @@
 #!/usr/bin/env fish
 
-# =============================================================================
-# nixpille NixOS Installer
-# =============================================================================
-# Redesigned with explicit status handling and state machine for reliable
-# control flow in fish shell.
-
 # Status constants
 set -g STATUS_OK 0
 set -g STATUS_CANCEL 1
@@ -26,12 +20,6 @@ set -g SELECTED_DISK ""
 set -g SELECTED_HOST ""
 set -g ENTERED_PASSWORD ""
 
-# =============================================================================
-# Core Dialog Wrapper
-# =============================================================================
-# Captures output AND status separately to avoid fish's command substitution
-# status loss problem.
-
 function dialog_run
     set -g DIALOG_RESULT ""
     set -g DIALOG_RESULT ($DIALOG --backtitle "$BACKTITLE" $argv 2>&1 >/dev/tty)
@@ -47,11 +35,6 @@ function dialog_run
     end
 end
 
-# =============================================================================
-# UI Helpers
-# =============================================================================
-
-# Source POSIX-style env files (VAR=value) in fish
 function source_env
     set -l file $argv[1]
     if test -f $file
@@ -88,10 +71,6 @@ function die
     ui_error "$argv[1]"
     exit 1
 end
-
-# =============================================================================
-# Hardware Detection
-# =============================================================================
 
 function detect_gpu
     set gpu_info (lspci 2>/dev/null | grep -iE "vga|3d|display")
@@ -143,10 +122,6 @@ function is_predefined_host
             return 1
     end
 end
-
-# =============================================================================
-# Network Setup
-# =============================================================================
 
 function check_network
     ping -c 1 -W 2 cache.nixos.org &>/dev/null
@@ -202,10 +177,6 @@ function configure_network
     return $STATUS_OK
 end
 
-# =============================================================================
-# Initial Setup
-# =============================================================================
-
 function select_keyboard
     dialog_run --title "Keyboard Layout" \
         --default-item "dk" \
@@ -238,10 +209,6 @@ function initial_setup
     select_keyboard
     configure_network
 end
-
-# =============================================================================
-# Disk Selection
-# =============================================================================
 
 function select_disk
     set -g SELECTED_DISK ""
@@ -330,10 +297,6 @@ function check_disk_size
     return $STATUS_OK
 end
 
-# =============================================================================
-# Host Selection
-# =============================================================================
-
 function select_host
     set -g SELECTED_HOST ""
 
@@ -366,10 +329,6 @@ function select_host
     return $STATUS_OK
 end
 
-# =============================================================================
-# Password Entry
-# =============================================================================
-
 function get_password
     set -g ENTERED_PASSWORD ""
     set username $argv[1]
@@ -397,10 +356,6 @@ function get_password
         ui_msg "Error" "Passwords do not match." 6 40
     end
 end
-
-# =============================================================================
-# Flake Preparation
-# =============================================================================
 
 function prepare_local_flake
     set hostname $argv[1]
@@ -434,10 +389,6 @@ function generate_default_nix
   system.stateVersion = \"25.11\";
 }" > $output
 end
-
-# =============================================================================
-# Install Execution (Point of No Return)
-# =============================================================================
 
 function execute_install
     set device $argv[1]
@@ -510,10 +461,6 @@ function execute_install
     return $STATUS_OK
 end
 
-# =============================================================================
-# Install Wizard with Step Navigation
-# =============================================================================
-
 function install_wizard
     set -l step 1
     set -l device ""
@@ -572,10 +519,6 @@ function install_wizard
     execute_install $device $hostname $username $password
     return $status
 end
-
-# =============================================================================
-# Hardware Mode
-# =============================================================================
 
 function hardware_mode
     show_hardware_summary
@@ -642,10 +585,6 @@ function hardware_mode
     return $STATUS_OK
 end
 
-# =============================================================================
-# Main Menu Loop
-# =============================================================================
-
 function main_menu_loop
     while true
         dialog_run --title "Main Menu" --menu "What would you like to do?" 15 60 5 \
@@ -692,10 +631,6 @@ function main_menu_loop
         end
     end
 end
-
-# =============================================================================
-# Main Entry Point
-# =============================================================================
 
 function main
     initial_setup

@@ -5,6 +5,7 @@
     ./network.nix
     ./docker.nix
     ./security.nix
+    ../../modules/github-token.nix
     (import ../../modules/cache).nixosModule
   ];
 

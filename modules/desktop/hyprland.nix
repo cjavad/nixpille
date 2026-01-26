@@ -1,17 +1,11 @@
-{
-  config,
-  pkgs,
-  inputs,
-  ...
-}:
+{ pkgs, pkgs-unstable, ... }:
 
 {
   programs.hyprland = {
     enable = true;
-    package = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.hyprland;
-    portalPackage =
-      inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.xdg-desktop-portal-hyprland;
     withUWSM = true;
+    package = pkgs-unstable.hyprland;
+    portalPackage = pkgs-unstable.xdg-desktop-portal-hyprland;
   };
 
   environment.sessionVariables = {
@@ -35,16 +29,31 @@
     after = [ "graphical-session.target" ];
     serviceConfig = {
       Type = "simple";
-      ExecStart = "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent";
+      ExecStart = "${pkgs-unstable.hyprpolkitagent}/libexec/hyprpolkitagent";
       Restart = "on-failure";
       RestartSec = 1;
       TimeoutStopSec = 10;
     };
   };
 
-  environment.systemPackages = with pkgs; [
-    brightnessctl
-    hyprlock
-    hyprpolkitagent
+  environment.systemPackages = [
+    pkgs.brightnessctl
+    pkgs.swayosd
+    pkgs-unstable.hyprlock
+    pkgs-unstable.hypridle
+    pkgs-unstable.hyprpolkitagent
   ];
+
+  # SwayOSD server (libinput backend for brightness keys)
+  systemd.user.services.swayosd = {
+    description = "SwayOSD LibInput Backend";
+    wantedBy = [ "graphical-session.target" ];
+    wants = [ "graphical-session.target" ];
+    after = [ "graphical-session.target" ];
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = "${pkgs.swayosd}/bin/swayosd-server";
+      Restart = "on-failure";
+    };
+  };
 }

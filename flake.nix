@@ -5,12 +5,10 @@
   # Source of truth: modules/cache/default.nix
   nixConfig = {
     extra-substituters = [
-      "https://hyprland.cachix.org"
       "https://nix-community.cachix.org"
       "https://vicinae.cachix.org"
     ];
     extra-trusted-public-keys = [
-      "hyprland.cachix.org-1:a7pgxzMz7+VO9dXvamGIBD/FX5BsGNN7CQ56MWRspLU="
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
       "vicinae.cachix.org-1:1kDrfienkGHPYbkpNj1mWTr7Fm1+zcenzgTizIcI3oc="
     ];
@@ -36,11 +34,19 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    hyprland.url = "github:hyprwm/Hyprland";
     vicinae.url = "github:vicinaehq/vicinae";
+    vicinae-extensions = {
+      url = "github:vicinaehq/extensions";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     zen-browser.url = "github:0xc000022070/zen-browser-flake";
     firefox-addons.url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
     nix-flatpak.url = "github:gmodena/nix-flatpak";
+
+    stylix = {
+      url = "github:danth/stylix/release-25.11";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -109,6 +115,7 @@
           modules = [
             ./hosts/${name}
             ./hosts/common
+            inputs.stylix.nixosModules.stylix
           ]
           ++ lib.optional desktop ./hosts/common/desktop.nix
           ++ map (user: ./home/${user}/default.nix) users

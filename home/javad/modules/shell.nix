@@ -1,46 +1,79 @@
-{ dotfiles, pkgs, ... }:
+{ config, pkgs, ... }:
 
 {
-  home.packages = [ pkgs.fish ];
-  xdg.configFile."fish".source = dotfiles.link "fish";
+  programs.fish = {
+    enable = true;
+
+    shellInit = ''
+      # Environment variables
+      set -gx EDITOR nvim
+      set -gx VISUAL nvim
+      set -gx PAGER less
+      set -gx LESS '-g -i -M -R -S -w -X -z-4'
+      set -gx XCURSOR_THEME 'capitaine-cursors'
+      set -gx XCURSOR_SIZE 24
+
+      # Bun
+      set -gx BUN_INSTALL "$HOME/.bun"
+    '';
+
+    interactiveShellInit = ''
+      # Greeting with random cowsay
+      function fish_greeting
+        fortune | cowsay -f (cowsay -l | tail -n +2 | tr ' ' '\n' | grep . | shuf -n1) | lolcat --seed (math (random 0 1000))
+      end
+
+      # Google Cloud SDK
+      if [ -f "$HOME/.google-cloud-sdk/path.fish.inc" ]
+        . "$HOME/.google-cloud-sdk/path.fish.inc"
+      end
+    '';
+
+    shellAliases = {
+      task = "go-task";
+      ssh = "TERM=xterm-256color command ssh";
+      nixos-task = "task -d /etc/nixos";
+    };
+
+    plugins = [
+      # fzf integration (replaces patrickf1/fzf.fish)
+      {
+        name = "fzf-fish";
+        src = pkgs.fishPlugins.fzf-fish.src;
+      }
+    ];
+  };
+
+  # Paths
+  home.sessionPath = [
+    "$HOME/.bun/bin"
+    "$HOME/.cargo/bin"
+    "$HOME/.local/bin"
+    "/var/lib/flatpak/exports/bin"
+  ];
 
   programs.direnv = {
     enable = true;
     nix-direnv.enable = true;
   };
 
-  programs.starship = {
-    enable = true;
-    settings = {
-      add_newline = false;
-      format = "$directory$git_branch$git_status$nix_shell$character";
-
-      character = {
-        success_symbol = "[➜](bold green)";
-        error_symbol = "[✗](bold red)";
-      };
-
-      directory = {
-        truncation_length = 3;
-        truncate_to_repo = true;
-      };
-
-      git_branch = {
-        symbol = " ";
-        style = "bold purple";
-      };
-
-      nix_shell = {
-        symbol = " ";
-        format = "[$symbol$state]($style) ";
-      };
-    };
-  };
-
   programs.bat = {
     enable = true;
-    config.theme = "base16";
   };
 
-  programs.fzf.enable = true;
+  programs.fzf = {
+    enable = true;
+    enableFishIntegration = false; # Using fzf-fish plugin
+  };
+
+  programs.zoxide = {
+    enable = true;
+    enableFishIntegration = true;
+  };
+
+  programs.eza = {
+    enable = true;
+    icons = "auto";
+    git = true;
+  };
 }

@@ -1,4 +1,4 @@
-{ dotfiles, pkgs, ... }:
+{ pkgs, ... }:
 
 {
   home.packages = with pkgs; [
@@ -15,5 +15,16 @@
 
   home.sessionPath = [ "$HOME/.krew/bin" ];
 
-  xdg.configFile."k9s".source = dotfiles.link "k9s";
+  # k9s aliases only (config is default)
+  xdg.configFile."k9s/aliases.yaml".text = ''
+    aliases:
+      dp: deployments
+      sec: v1/secrets
+      jo: jobs
+      cr: clusterroles
+      crb: clusterrolebindings
+      ro: roles
+      rb: rolebindings
+      np: networkpolicies
+  '';
 }

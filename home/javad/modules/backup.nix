@@ -20,10 +20,11 @@ let
 
   backupPathsStr = lib.concatStringsSep " " backupPaths;
 
-  kopiaSnapshotScript = pkgs.writeShellScript "kopia-snapshot" ''
-    HOSTNAME=$(hostname)
+  kopiaSnapshotScript = pkgs.writeScript "kopia-snapshot" ''
+    #!${pkgs.fish}/bin/fish
+    set hostname (hostname)
     exec ${pkgs.kopia}/bin/kopia snapshot create \
-      --hostname "$HOSTNAME" \
+      --hostname $hostname \
       ${backupPathsStr}
   '';
 in

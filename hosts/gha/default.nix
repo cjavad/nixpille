@@ -16,7 +16,7 @@
   environment.systemPackages = with pkgs; [
     git
     gh
-    vim
+    neovim
     curl
     jq
   ];
