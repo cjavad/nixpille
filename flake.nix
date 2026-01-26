@@ -74,8 +74,7 @@
 
       # Discover directories (excluding "common")
       discoverDirs =
-        dir:
-        lib.filterAttrs (name: type: type == "directory" && name != "common") (builtins.readDir dir);
+        dir: lib.filterAttrs (name: type: type == "directory" && name != "common") (builtins.readDir dir);
 
       hosts = builtins.attrNames (discover ./hosts);
       users = builtins.attrNames (discoverDirs ./home);
@@ -159,15 +158,20 @@
                 ];
               };
             # For each user, discover their host configs
-            userHosts = lib.listToAttrs (lib.flatten (map (user:
-              let
-                userHostDirs = builtins.attrNames (discover ./home/${user});
-              in
-              map (host: {
-                name = "${user}@${host}";
-                value = mkHome user host;
-              }) userHostDirs
-            ) users));
+            userHosts = lib.listToAttrs (
+              lib.flatten (
+                map (
+                  user:
+                  let
+                    userHostDirs = builtins.attrNames (discover ./home/${user});
+                  in
+                  map (host: {
+                    name = "${user}@${host}";
+                    value = mkHome user host;
+                  }) userHostDirs
+                ) users
+              )
+            );
           in
           userHosts;
       };
