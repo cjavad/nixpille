@@ -1,5 +1,30 @@
 { pkgs, config, ... }:
 
+let
+  submapIndicatorScript = pkgs.writeScript "submap-indicator" ''
+    #!/usr/bin/env bash
+    SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+
+    output_json() {
+        local submap="$1"
+        if [[ -z "$submap" ]]; then
+            printf '{"text": "%s", "class": "clock", "tooltip": "%s"}\n' \
+                "$(date +"%H:%M")" "$(date +"%A, %d %B %Y")"
+        elif [[ "$submap" == "screenshot" ]]; then
+            printf '{"text": "  P    O    P    O", "class": "screenshot", "tooltip": "P=area O=full  ⇧=clipboard  Esc=exit"}\n'
+        elif [[ "$submap" == "recording" ]]; then
+            printf '{"text": "  R    R", "class": "recording", "tooltip": "R=record  ⇧R=with audio  Esc=exit"}\n'
+        else
+            printf '{"text": " %s", "class": "submap", "tooltip": "Submap: %s"}\n' "$submap" "$submap"
+        fi
+    }
+
+    output_json ""
+    ${pkgs.socat}/bin/socat -u "UNIX-CONNECT:$SOCKET" - 2>/dev/null | while read -r line; do
+        [[ "$line" == submap\>\>* ]] && output_json "''${line#submap>>}"
+    done
+  '';
+in
 {
   programs.waybar = {
     enable = true;
@@ -18,9 +43,8 @@
 
         modules-left = [
           "hyprland/workspaces"
-          "hyprland/submap"
         ];
-        modules-center = [ "clock" ];
+        modules-center = [ "custom/submap-indicator" ];
         modules-right = [
           "custom/nightlight"
           "custom/github"
@@ -53,10 +77,10 @@
           on-click = "activate";
         };
 
-        "hyprland/submap" = {
-          format = "";
+        "custom/submap-indicator" = {
+          exec = "${submapIndicatorScript}";
+          return-type = "json";
           tooltip = true;
-          tooltip-format = "Submap: {}";
         };
 
         "custom/nightlight" = {
@@ -77,23 +101,6 @@
           exec = "gh api '/notifications' -q '{ text: length }' | cat -";
           exec-if = "[ -x \"$(command -v gh)\" ] && gh auth status 2>&1 | grep -q -m 1 'Logged in' && test $(gh api '/notifications' -q 'length') -ne 0";
           on-click = "xdg-open https://github.com/notifications";
-        };
-
-        clock = {
-          format = "{:%H:%M}";
-          format-alt = "{:%a %d %b}";
-          tooltip-format = "<tt><small>{calendar}</small></tt>";
-          calendar = {
-            mode = "month";
-            weeks-pos = "right";
-            format = {
-              months = "<span color='#cdd6f4'><b>{}</b></span>";
-              days = "<span color='#cdd6f4'>{}</span>";
-              weeks = "<span color='#89b4fa'>W{}</span>";
-              weekdays = "<span color='#fab387'>{}</span>";
-              today = "<span color='#f38ba8'><b><u>{}</u></b></span>";
-            };
-          };
         };
 
         idle_inhibitor = {
@@ -217,10 +224,9 @@
 
       /* All modules: transparent background */
       #workspaces,
-      #submap,
+      #custom-submap-indicator,
       #custom-nightlight,
       #custom-github,
-      #clock,
       #idle_inhibitor,
       #pulseaudio,
       #backlight,
@@ -236,9 +242,9 @@
       }
 
       /* Hover: subtle highlight */
+      #custom-submap-indicator:hover,
       #custom-nightlight:hover,
       #custom-github:hover,
-      #clock:hover,
       #idle_inhibitor:hover,
       #pulseaudio:hover,
       #backlight:hover,
@@ -280,11 +286,41 @@
         color: #000000;
       }
 
-      /* Submap */
-      #submap {
+      /* Submap indicator - unified center module */
+      #custom-submap-indicator {
+        padding: 0 10px;
+        transition: all 0.2s ease;
+      }
+
+      #custom-submap-indicator.clock {
+        color: #cdd6f4;
+        font-weight: bold;
+      }
+
+      #custom-submap-indicator.screenshot {
+        background-color: rgba(137, 180, 250, 0.9);
+        color: #000000;
+        font-weight: bold;
+        padding: 0 15px;
+      }
+
+      #custom-submap-indicator.recording {
+        background-color: rgba(243, 139, 168, 0.9);
+        color: #000000;
+        font-weight: bold;
+        padding: 0 15px;
+        animation: recording-pulse 1s ease-in-out infinite;
+      }
+
+      #custom-submap-indicator.submap {
         background-color: rgba(250, 179, 135, 0.9);
         color: #000000;
         font-weight: bold;
+      }
+
+      @keyframes recording-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
       }
 
       /* Nightlight */
@@ -292,9 +328,6 @@
 
       /* GitHub */
       #custom-github { color: @base05; }
-
-      /* Clock */
-      #clock { color: @base05; font-weight: bold; }
 
       /* Status icons: dimmed by default */
       #idle_inhibitor,

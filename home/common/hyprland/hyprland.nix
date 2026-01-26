@@ -474,7 +474,7 @@ in
 
     [temperature]
     day = 6500
-    night = 4000
+    night = 4500
 
     [transition]
     duration = 30

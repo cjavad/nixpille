@@ -17,6 +17,7 @@
   console.keyMap = "dk";
   services.xserver.xkb = {
     layout = "dk,us";
-    options = "grp:alt_shift_toggle";
+    variant = "nodeadkeys,"; # dk uses nodeadkeys, us uses default
+    options = "grp:alt_shift_toggle,lv3:ralt_switch";
   };
 }
