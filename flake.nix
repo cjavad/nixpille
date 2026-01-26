@@ -143,7 +143,10 @@
         # Export as user@host (e.g., javad@vm) for `home-manager switch --flake /etc/nixos`
         homeConfigurations =
           let
-            pkgs = nixpkgs.legacyPackages.${system};
+            pkgs = import nixpkgs {
+              inherit system;
+              config.allowUnfree = true;
+            };
             mkHome =
               user: host:
               home-manager.lib.homeManagerConfiguration {
