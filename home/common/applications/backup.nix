@@ -21,12 +21,14 @@ let
 
   backupPathsStr = lib.concatStringsSep " " backupPaths;
 
+  coreutils = "${pkgs.coreutils}/bin";
+
   # Connect to repository using secrets from sops
   kopiaConnectScript = pkgs.writeScript "kopia-connect" ''
     #!${pkgs.fish}/bin/fish
-    set -l url (cat ${runtime}/kopia/url)
-    set -l user (cat ${runtime}/kopia/username)
-    set -l pass (cat ${runtime}/kopia/password)
+    set -l url (${coreutils}/cat ${runtime}/kopia/url)
+    set -l user (${coreutils}/cat ${runtime}/kopia/username)
+    set -l pass (${coreutils}/cat ${runtime}/kopia/password)
 
     # Check if already connected
     if ${pkgs.kopia}/bin/kopia repository status &>/dev/null
@@ -41,7 +43,7 @@ let
 
   kopiaSnapshotScript = pkgs.writeScript "kopia-snapshot" ''
     #!${pkgs.fish}/bin/fish
-    set hostname (hostname)
+    set hostname (${pkgs.hostname}/bin/hostname)
     exec ${pkgs.kopia}/bin/kopia snapshot create \
       --hostname $hostname \
       ${backupPathsStr}

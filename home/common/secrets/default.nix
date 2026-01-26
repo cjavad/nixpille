@@ -19,6 +19,7 @@ let
   runtime = "/run/user/1000";
   secretTool = "${pkgs.libsecret}/bin/secret-tool";
   jq = "${pkgs.jq}/bin/jq";
+  coreutils = "${pkgs.coreutils}/bin";
 
   # Export age key + files from keyring to tmpfs
   unlockScript = pkgs.writers.writeFish "secrets-unlock" ''
@@ -27,9 +28,18 @@ let
 
     function expand_path -a path
         set path (string replace -a '$HOME' $HOME $path)
-        set path (string replace -a '$UID' (id -u) $path)
+        set path (string replace -a '$UID' (${coreutils}/id -u) $path)
         set path (string replace -a '$XDG_RUNTIME_DIR' ${runtime} $path)
         echo $path
+    end
+
+    # Ensure runtime dir exists
+    if not test -d ${runtime}
+      echo "Runtime dir ${runtime} does not exist yet, waiting..."
+      for i in (seq 1 10)
+        test -d ${runtime} && break
+        ${coreutils}/sleep 1
+      end
     end
 
     # Wait for keyring (up to 30s)
@@ -39,7 +49,7 @@ let
         set keyring_ready true
         break
       end
-      sleep 1
+      ${coreutils}/sleep 1
     end
 
     if not $keyring_ready
@@ -50,10 +60,10 @@ let
     # Export age key
     set -l age_key (${secretTool} lookup service sops type age-key 2>/dev/null)
     if test -n "$age_key"
-      mkdir -p $SOPS_DIR
-      chmod 700 $SOPS_DIR
+      ${coreutils}/mkdir -p $SOPS_DIR
+      ${coreutils}/chmod 700 $SOPS_DIR
       printf '%s' "$age_key" > $SOPS_DIR/keys.txt
-      chmod 600 $SOPS_DIR/keys.txt
+      ${coreutils}/chmod 600 $SOPS_DIR/keys.txt
       echo "Age key → $SOPS_DIR/keys.txt"
     end
 
@@ -78,9 +88,9 @@ let
         echo "  $filename → keyring (sops)"
       else
         set -l target (expand_path $dest)
-        mkdir -p (dirname $target)
+        ${coreutils}/mkdir -p (${coreutils}/dirname $target)
         printf '%s' "$content" > $target
-        chmod 600 $target
+        ${coreutils}/chmod 600 $target
         echo "  $filename → $target"
       end
     end
