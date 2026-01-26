@@ -7,6 +7,7 @@
     ../../common/linux-desktop
     ../../common/development
     ../../common/applications
+    ../../common/hyprland/lid.nix
     ../secrets.nix
   ];
 

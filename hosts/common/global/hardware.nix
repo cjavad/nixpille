@@ -30,6 +30,13 @@
   services.fwupd.enable = true;
   services.libinput.enable = true;
 
+  # Disable logind lid handling - Hyprland handles this with power-aware script
+  services.logind = {
+    lidSwitch = "ignore";
+    lidSwitchExternalPower = "ignore";
+    lidSwitchDocked = "ignore";
+  };
+
   services.btrfs.autoScrub = {
     enable = true;
     interval = "weekly";

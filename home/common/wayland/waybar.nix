@@ -318,10 +318,7 @@ in
         font-weight: bold;
       }
 
-      @keyframes recording-pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.7; }
-      }
+      @keyframes recording-pulse { 50% { opacity: 0.7; } }
 
       /* Nightlight */
       #custom-nightlight { color: @base0A; }
