@@ -2,6 +2,9 @@
 
 {
   nix = {
+    # Disable legacy channels (we use flakes)
+    channel.enable = false;
+
     settings = {
       experimental-features = [
         "nix-command"
