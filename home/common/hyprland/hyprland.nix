@@ -123,9 +123,10 @@ in
         disable_splash_rendering = true;
       };
 
-      # Disable update banner
+      # Disable Hyprland popups/banners
       ecosystem = {
         no_update_news = true;
+        no_donation_nag = true;
       };
 
       # Cursor

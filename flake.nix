@@ -104,7 +104,7 @@
       # Home-manager shared modules
       # Note: stylix is auto-configured via NixOS module, don't add here
       homeModules = [
-        inputs.zen-browser.homeModules.default
+        inputs.zen-browser.homeModules.beta
       ];
 
       # Home-manager NixOS module with shared config

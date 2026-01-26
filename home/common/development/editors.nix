@@ -8,5 +8,6 @@
 
   home.packages = with pkgs; [
     zed-editor
+    claude-code
   ];
 }
