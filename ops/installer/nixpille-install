@@ -359,23 +359,32 @@ end
 
 function prepare_local_flake
     set hostname $argv[1]
+    set force_remote $argv[2]  # Optional: "true" to force clone from GitHub
 
     ui_info "Preparing local flake..."
     rm -rf $WORK_DIR
 
-    if test -d $LOCAL_REPO
-        cp -rL $LOCAL_REPO $WORK_DIR
+    if test -d $LOCAL_REPO; and test "$force_remote" != "true"
+        ui_info "Using embedded repository..."
+        if not cp -a $LOCAL_REPO $WORK_DIR
+            return $STATUS_ERROR
+        end
         chmod -R u+w $WORK_DIR
     else
-        ui_info "Cloning repository..."
-        git clone --depth 1 $REMOTE_REPO $WORK_DIR
+        ui_info "Cloning fresh repository..."
+        check_network || return $STATUS_ERROR
+        if not git clone --depth 1 --recurse-submodules $REMOTE_REPO $WORK_DIR
+            return $STATUS_ERROR
+        end
     end
 
     mkdir -p $WORK_DIR/hosts/$hostname
+    return $STATUS_OK
 end
 
 function generate_default_nix
     set hostname $argv[1]
+    set username $argv[2]
     set output $WORK_DIR/hosts/$hostname/default.nix
 
     echo "# Host: $hostname
@@ -386,6 +395,14 @@ function generate_default_nix
   imports = [ ./hardware.nix ];
   networking.hostName = \"$hostname\";
   services.openssh.enable = true;
+
+  users.users.$username = {
+    isNormalUser = true;
+    extraGroups = [ \"wheel\" \"networkmanager\" ];
+  };
+
+  networking.networkmanager.enable = true;
+
   system.stateVersion = \"25.11\";
 }" > $output
 end
@@ -406,37 +423,52 @@ function execute_install
         return $STATUS_ERROR
     end
 
-    # 2. Prepare local flake with hardware.nix
-    prepare_local_flake $hostname
+    # Verify Disko mounted correctly
+    if not mountpoint -q /mnt
+        ui_error "Disko finished but /mnt is not mounted. Check your disko config and mount points."
+        return $STATUS_ERROR
+    end
 
-    if test -f /tmp/nixpille-hosts/$hostname/hardware.nix
-        ui_info "Using existing hardware config..."
-        cp /tmp/nixpille-hosts/$hostname/hardware.nix $WORK_DIR/hosts/$hostname/
-    else
-        ui_info "Generating hardware config..."
-        sudo nixos-generate-config --root /mnt --show-hardware-config > $WORK_DIR/hosts/$hostname/hardware.nix
+    if test -d /sys/firmware/efi; and not mountpoint -q /mnt/boot
+        ui_error "EFI system detected but /mnt/boot is not mounted. Your ESP mount is probably missing."
+        return $STATUS_ERROR
+    end
+
+    # 2. Prepare local flake
+    prepare_local_flake $hostname
+    if test $status -ne $STATUS_OK
+        ui_error "Failed to prepare flake repository"
+        return $STATUS_ERROR
+    end
+
+    # Always generate hardware.nix fresh from /mnt after disko has mounted the target
+    # This ensures correct filesystem UUIDs/labels - never use cached config from live ISO
+    ui_info "Generating hardware config..."
+    if not sudo nixos-generate-config --root /mnt --show-hardware-config > $WORK_DIR/hosts/$hostname/hardware.nix
+        ui_error "Failed to generate hardware configuration"
+        return $STATUS_ERROR
     end
 
     # For new hosts, generate default.nix
     if not is_predefined_host $hostname
-        generate_default_nix $hostname
+        generate_default_nix $hostname $username
     end
 
-    # 3. Initialize git repo (required for flake evaluation)
-    ui_info "Preparing flake..."
+    # Stage new/modified files for flake evaluation (flakes only see tracked files)
     pushd $WORK_DIR
-    git init -q
     git add -A
     popd
 
-    # 4. Verify flake can build the configuration
+    # 3. Verify flake can build the configuration
     ui_info "Verifying configuration..."
-    if not nix build "$WORK_DIR#nixosConfigurations.$hostname.config.system.build.toplevel" --dry-run 2>/dev/null
-        ui_error "Configuration '$hostname' failed to evaluate.\nCheck that the host exists and is valid."
+    set -l eval_log "$WORK_DIR/eval.log"
+    if not nix build "$WORK_DIR#nixosConfigurations.$hostname.config.system.build.toplevel" --dry-run 2>$eval_log
+        $DIALOG --backtitle "$BACKTITLE" --title "Configuration Error" --textbox $eval_log 22 78
+        ui_error "Configuration '$hostname' failed to evaluate."
         return $STATUS_ERROR
     end
 
-    # 5. Install from local flake
+    # 4. Install from local flake
     ui_info "Installing NixOS..."
 
     set extra_opts
@@ -451,12 +483,21 @@ function execute_install
         return $STATUS_ERROR
     end
 
-    # 6. Save hardware.nix to installed system
-    sudo mkdir -p /mnt/etc/nixpille/hosts/$hostname
-    sudo cp $WORK_DIR/hosts/$hostname/hardware.nix /mnt/etc/nixpille/hosts/$hostname/
+    # 5. Bootstrap config repo to user's home directory
+    ui_info "Setting up config repository..."
+    sudo mkdir -p /mnt/home/$username/Dev
+    sudo cp -a $WORK_DIR /mnt/home/$username/Dev/nixpille
+    sudo chown -R 1000:1000 /mnt/home/$username/Dev
+
+    # 6. Create /etc/nixos symlink (systemd.tmpfiles will maintain it on future boots)
+    sudo ln -sfn /home/$username/Dev/nixpille /mnt/etc/nixos
 
     # 7. Set password
-    sudo nixos-enter --root /mnt -c "echo '$username:$password' | chpasswd"
+    ui_info "Setting password..."
+    if not sudo nixos-enter --root /mnt -c "echo '$username:$password' | chpasswd"
+        ui_error "Failed to set password for user '$username'. Is the user defined in the configuration?"
+        return $STATUS_ERROR
+    end
 
     return $STATUS_OK
 end
@@ -464,7 +505,7 @@ end
 function install_wizard
     set -l step 1
     set -l device ""
-    set -l hostname ""
+    set -l target_host ""
     set -l username "javad"
     set -l password ""
 
@@ -485,10 +526,10 @@ function install_wizard
                     set step 1  # Back to disk
                     continue
                 end
-                set hostname $SELECTED_HOST
+                set target_host $SELECTED_HOST
 
                 # Check disk size
-                check_disk_size $device $hostname
+                check_disk_size $device $target_host
                 if test $status -ne $STATUS_OK
                     set step 1  # Back to disk selection
                     continue
@@ -506,7 +547,7 @@ function install_wizard
 
             case 4  # Confirm
                 dialog_run --title "Confirm" --yesno \
-                    "Install NixOS:\n\n  Disk: $device (WILL BE ERASED)\n  Host: $hostname\n  User: $username\n\nProceed?" 12 50
+                    "Install NixOS:\n\n  Disk: $device (WILL BE ERASED)\n  Host: $target_host\n  User: $username\n\nProceed?" 12 50
                 if test $status -ne $STATUS_OK
                     set step 3  # Back to password
                     continue
@@ -516,7 +557,7 @@ function install_wizard
     end
 
     # === EXECUTION PHASE (point of no return) ===
-    execute_install $device $hostname $username $password
+    execute_install $device $target_host $username $password
     return $status
 end
 
@@ -547,11 +588,20 @@ function hardware_mode
   imports = [ ./hardware.nix ];
   networking.hostName = \"$hostname\";
   services.openssh.enable = true;
+
+  # TODO: Replace 'myuser' with your username
+  users.users.myuser = {
+    isNormalUser = true;
+    extraGroups = [ \"wheel\" \"networkmanager\" ];
+  };
+
+  networking.networkmanager.enable = true;
+
   system.stateVersion = \"25.11\";
 }" > $output_dir/default.nix
 
         ui_msg "New Host Generated" \
-            "Created new host config:\n\n  $output_dir/\n    ├── default.nix\n    └── hardware.nix\n\nCopy to hosts/$hostname/ in your repo.\nFlake auto-discovers new hosts!" 14 55
+            "Created new host config:\n\n  $output_dir/\n    ├── default.nix\n    └── hardware.nix\n\nCopy to hosts/$hostname/ in your repo.\nFlake auto-discovers new hosts!\n\nNote: Edit default.nix to set your username." 16 55
     else
         ui_msg "Hardware Config Generated" \
             "Generated hardware.nix for existing host '$hostname':\n\n  $output_dir/hardware.nix\n\nCopy to hosts/$hostname/hardware.nix" 12 55
