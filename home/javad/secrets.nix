@@ -53,6 +53,7 @@ in
   # SSH config - include hosts.conf from tmpfs (pulled from BW)
   programs.ssh = {
     enable = true;
+    enableDefaultConfig = false;
     includes = [ "${runtime}/ssh/hosts.conf" ];
     matchBlocks."*" = {
       addKeysToAgent = "yes";

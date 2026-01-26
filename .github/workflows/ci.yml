@@ -34,16 +34,26 @@ jobs:
       - name: Check for eval warnings
         run: |
           warnings=""
+          # Filter out expected warnings:
+          # - Git tree (dirty tree warnings)
+          # - untrusted flake configuration (CI runner doesn't trust extra-substituters)
+          # - builtins.toFile (upstream stylix issue)
+          filter_warnings() {
+            grep -i "^warning:\|^evaluation warning:" | \
+              grep -v "Git tree" | \
+              grep -v "untrusted flake configuration" | \
+              grep -v "builtins.toFile"
+          }
           for cfg in $(nix eval .#nixosConfigurations --apply 'x: builtins.concatStringsSep " " (builtins.attrNames x)' --raw); do
             output=$(nix eval .#nixosConfigurations.$cfg.config.system.build.toplevel 2>&1 || true)
-            if echo "$output" | grep -i "^warning:" | grep -v "Git tree"; then
-              warnings="$warnings\n=== nixos/$cfg ===\n$output"
+            if echo "$output" | filter_warnings; then
+              warnings="$warnings\n=== nixos/$cfg ===\n$(echo "$output" | filter_warnings)"
             fi
           done
           for user in $(nix eval .#homeConfigurations --apply 'x: builtins.concatStringsSep " " (builtins.attrNames x)' --raw); do
             output=$(nix eval .#homeConfigurations.$user.activationPackage 2>&1 || true)
-            if echo "$output" | grep -i "^warning:" | grep -v "Git tree"; then
-              warnings="$warnings\n=== home/$user ===\n$output"
+            if echo "$output" | filter_warnings; then
+              warnings="$warnings\n=== home/$user ===\n$(echo "$output" | filter_warnings)"
             fi
           done
           if [ -n "$warnings" ]; then

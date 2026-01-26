@@ -123,40 +123,11 @@
         nixosConfigurations =
           let
             hostConfigs = lib.genAttrs hosts mkHost;
-            # Hosts to include in full ISO (exclude CI-only hosts)
-            isoHosts = lib.filter (name: name != "gha") hosts;
           in
           hostConfigs
           // {
-            # Full ISO with all host closures for offline install
+            # Minimal network installer ISO
             iso = nixpkgs.lib.nixosSystem {
-              inherit system specialArgs;
-              modules = [
-                ./modules/profiles/iso
-                (
-                  { pkgs, lib, ... }:
-                  let
-                    hostClosures = builtins.listToAttrs (
-                      map (name: {
-                        inherit name;
-                        value = hostConfigs.${name}.config.system.build.toplevel;
-                      }) isoHosts
-                    );
-                    # Static estimates (GB) - conservative values
-                    closureSizes = pkgs.runCommand "closure-sizes" { } ''
-                      mkdir -p $out
-                      ${lib.concatStringsSep "\n" (map (name: "echo 35 > $out/${name}") isoHosts)}
-                    '';
-                  in
-                  {
-                    isoImage.storeContents = lib.attrValues hostClosures;
-                    environment.etc."nixpille/closure-sizes".source = closureSizes;
-                  }
-                )
-              ];
-            };
-            # Minimal ISO for quick testing (no host closures)
-            iso-minimal = nixpkgs.lib.nixosSystem {
               inherit system specialArgs;
               modules = [ ./modules/profiles/iso ];
             };

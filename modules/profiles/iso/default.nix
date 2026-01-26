@@ -3,7 +3,6 @@
   pkgs,
   lib,
   modulesPath,
-  inputs,
   ...
 }:
 
@@ -18,42 +17,31 @@ in
     (import ../../cache).nixosModule
   ];
 
+  # Minimal ISO - downloads everything from network
   boot.supportedFilesystems.zfs = lib.mkForce false;
   boot.kernelPackages = pkgs.linuxPackages_latest;
-  isoImage.squashfsCompression = "xz -Xbcj x86 -Xdict-size 100%";
+  isoImage.squashfsCompression = "zstd -Xcompression-level 6";
   image.baseName = lib.mkForce "nixpille";
   nixpkgs.config.allowUnfree = true;
 
-  # Danish keyboard as default (can be changed in installer)
+  # Locale
   console.keyMap = "dk";
   i18n.defaultLocale = "en_US.UTF-8";
 
-  nix.settings.experimental-features = [
-    "nix-command"
-    "flakes"
-  ];
+  # Nix settings
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
+  # Network
   networking.networkmanager.enable = true;
   networking.wireless.enable = lib.mkForce false;
 
-  programs.fish = {
-    enable = true;
-    interactiveShellInit = ''
-      if test -e /etc/motd; and status is-login
-        cat /etc/motd
-      end
-    '';
-  };
+  # Shell
+  programs.fish.enable = true;
 
+  # Live user
   users.users.nixos = {
     isNormalUser = true;
-    description = "Live User";
-    extraGroups = [
-      "wheel"
-      "networkmanager"
-      "video"
-      "audio"
-    ];
+    extraGroups = [ "wheel" "networkmanager" "video" "audio" ];
     initialHashedPassword = "";
     shell = lib.mkForce pkgs.fish;
   };
@@ -61,6 +49,7 @@ in
   security.sudo.wheelNeedsPassword = false;
   services.getty.autologinUser = "nixos";
 
+  # Packages
   environment.systemPackages = with pkgs; [
     installScript
     dialog
@@ -70,40 +59,47 @@ in
     gptfdisk
     dosfstools
     e2fsprogs
+    btrfs-progs
     curl
     wget
     pciutils
     usbutils
     htop
     file
-    unzip
   ];
 
+  # Disko config for installer
   environment.etc."nixpille/disko/standard.nix".source = ../../disko/standard.nix;
-  environment.etc."nixpille/repo".source = inputs.self;
-  environment.etc."skel/.config/fish".source = ../../../home/javad/dotfiles/fish;
 
-  system.activationScripts.copyUserConfig = ''
-    if [ -d /home/nixos ]; then
-      cp -rn /etc/skel/. /home/nixos/ 2>/dev/null || true
-      chown -R nixos:users /home/nixos/.config 2>/dev/null || true
-    fi
+  # Fish config for live environment
+  programs.fish.interactiveShellInit = ''
+    set -gx EDITOR nvim
+    set -gx VISUAL nvim
+
+    function fish_greeting
+      echo ""
+      set_color cyan
+      echo "  nixpille installer"
+      set_color normal
+      echo ""
+      echo "  Run 'nixpille-install' to begin"
+      echo "  Run 'nmtui' to configure network"
+      echo ""
+    end
   '';
 
+  # MOTD
   environment.etc."motd".text = ''
 
-    ╔══════════════════════════════════════════════════════════════╗
-    ║                 Welcome to nixpille                          ║
-    ╠══════════════════════════════════════════════════════════════╣
-    ║                                                              ║
-    ║  To install NixOS, run: nixpille-install                     ║
-    ║                                                              ║
-    ║  Useful commands:                                            ║
-    ║    nmtui           - Configure network                       ║
-    ║    htop            - System monitor                          ║
-    ║    lsblk           - List disks                              ║
-    ║                                                              ║
-    ╚══════════════════════════════════════════════════════════════╝
+    ┌──────────────────────────────────────────────────────────┐
+    │                   nixpille installer                     │
+    ├──────────────────────────────────────────────────────────┤
+    │  nixpille-install    Start installation                  │
+    │  nmtui               Configure network                   │
+    │  lsblk               List disks                          │
+    └──────────────────────────────────────────────────────────┘
 
   '';
+
+  system.stateVersion = "25.11";
 }
