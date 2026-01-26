@@ -11,6 +11,9 @@ let
   runtime = "/run/user/1000";
   # Filter out empty strings from manifest lists
   filterEmpty = list: builtins.filter (s: s != "") (if list == null then [ ] else list);
+  # SSH keys excluding special "hosts" entry
+  sshKeys = builtins.filter (s: s != "hosts") (filterEmpty manifest.ssh);
+  hasHosts = builtins.elem "hosts" (filterEmpty manifest.ssh);
 in
 {
   home.packages = with pkgs; [
@@ -24,9 +27,12 @@ in
     validateSopsFiles = false;
 
     secrets =
-      lib.genAttrs (map (n: "ssh_${n}") (filterEmpty manifest.ssh)) (key: {
+      lib.genAttrs (map (n: "ssh_${n}") sshKeys) (key: {
         path = "${runtime}/ssh-secrets/${lib.removePrefix "ssh_" key}";
       })
+      // lib.optionalAttrs hasHosts {
+        ssh_hosts.path = "${home}/.ssh/hosts.conf";
+      }
       // lib.genAttrs (map (n: "gpg_${n}") (filterEmpty manifest.gpg)) (key: {
         path = "${runtime}/gpg-secrets/${lib.removePrefix "gpg_" key}";
       })
