@@ -47,6 +47,11 @@
       url = "github:danth/stylix/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    lanzaboote = {
+      url = "github:nix-community/lanzaboote/v0.4.2";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -66,7 +71,6 @@
           type == "directory" && name != "common" && builtins.pathExists (dir + "/${name}/default.nix")
         ) (builtins.readDir dir);
 
-      users = builtins.attrNames (discover ./home);
       hosts = builtins.attrNames (discover ./hosts);
 
       system = "x86_64-linux";
@@ -78,48 +82,35 @@
 
       specialArgs = {
         inherit inputs pkgs-unstable;
+        flakeRoot = ./.;
       };
 
+      # Home-manager shared modules
+      # Note: stylix is auto-configured via NixOS module, don't add here
       homeModules = [
-        inputs.sops-nix.homeManagerModules.sops
         inputs.zen-browser.homeModules.default
       ];
 
-      mkHome =
-        user:
-        home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.${system};
-          extraSpecialArgs = specialArgs;
-          modules = homeModules ++ [ ./home/${user}/home.nix ];
-        };
-
-      mkHomeModule = userList: {
+      # Home-manager NixOS module with shared config
+      homeManagerModule = {
         imports = [ home-manager.nixosModules.home-manager ];
         home-manager = {
           useGlobalPkgs = true;
           useUserPackages = true;
           sharedModules = homeModules;
           extraSpecialArgs = specialArgs;
-          users = lib.genAttrs userList (user: import ./home/${user}/home.nix);
         };
       };
 
       mkHost =
         name:
-        {
-          users ? [ "javad" ],
-          desktop ? true,
-        }:
         nixpkgs.lib.nixosSystem {
           inherit system specialArgs;
           modules = [
             ./hosts/${name}
-            ./hosts/common
             inputs.stylix.nixosModules.stylix
-          ]
-          ++ lib.optional desktop ./hosts/common/desktop.nix
-          ++ map (user: ./home/${user}/default.nix) users
-          ++ [ (mkHomeModule users) ];
+            homeManagerModule
+          ];
         };
     in
     flake-parts.lib.mkFlake { inherit inputs; } {
@@ -129,11 +120,9 @@
       ];
 
       flake = {
-        homeConfigurations = lib.genAttrs users mkHome;
-
         nixosConfigurations =
           let
-            hostConfigs = lib.genAttrs hosts (name: mkHost name { });
+            hostConfigs = lib.genAttrs hosts mkHost;
             # Hosts to include in full ISO (exclude CI-only hosts)
             isoHosts = lib.filter (name: name != "gha") hosts;
           in

@@ -86,10 +86,10 @@ tasks:
       - |
         nix shell nixpkgs#qemu nixpkgs#OVMF -c sh -c '
           qemu-system-x86_64 \
+            -enable-kvm \
+            -cpu host \
             -m 8G \
             -smp 4 \
-            -cpu host \
-            -enable-kvm \
             -drive if=pflash,format=raw,readonly=on,file=$(dirname $(which qemu-system-x86_64))/../share/qemu/edk2-x86_64-code.fd \
             -boot d \
             -cdrom $(find result/iso -name "*.iso" -type f | head -1) \
@@ -105,10 +105,10 @@ tasks:
       - |
         nix shell nixpkgs#qemu nixpkgs#OVMF -c sh -c '
           qemu-system-x86_64 \
+            -enable-kvm \
+            -cpu host \
             -m 8G \
             -smp 4 \
-            -cpu host \
-            -enable-kvm \
             -drive if=pflash,format=raw,readonly=on,file=$(dirname $(which qemu-system-x86_64))/../share/qemu/edk2-x86_64-code.fd \
             -drive file=disk.qcow2,format=qcow2,if=virtio \
             -nic user,model=virtio-net-pci \

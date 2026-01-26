@@ -1,4 +1,8 @@
-# Age key in keyring, exported to tmpfs at login. Secrets decrypted to /run/user/<uid>/ by sops-nix.
+# Age key in keyring, exported to tmpfs at login.
+# Secrets decrypted to /run/user/<uid>/ by sops-nix.
+#
+# Only rotatable secrets (API tokens, WG configs) go here.
+# Identity secrets (SSH, GPG, kubeconfig) are managed via Bitwarden.
 keys:
   - &javad age1zpq5wztx3yp6gvjg9vxldttcgt367ljcrtfc5nlk9qx8kydvyqmsehvfqm
 

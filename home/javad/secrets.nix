@@ -2,49 +2,35 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }:
 
 let
-  manifest = import ../../ops/secrets/manifest.nix;
   home = config.home.homeDirectory;
   runtime = "/run/user/1000";
-  # Filter out empty strings from manifest lists
-  filterEmpty = list: builtins.filter (s: s != "") (if list == null then [ ] else list);
-  # SSH keys excluding special "hosts" entry
-  sshKeys = builtins.filter (s: s != "hosts") (filterEmpty manifest.ssh);
-  hasHosts = builtins.elem "hosts" (filterEmpty manifest.ssh);
 in
 {
+  imports = [ inputs.sops-nix.homeManagerModules.sops ];
+
   home.packages = with pkgs; [
     sops
     age
   ];
 
   sops = {
-    defaultSopsFile = "${home}/.config/sops/secrets.yaml";
+    # Only API tokens in sops (rotatable, safe in git)
+    # Identity files (SSH, GPG) and configs (WG, kube, hosts) are in BW
+    defaultSopsFile = ../../hosts/common/secrets/secrets.yaml;
     age.keyFile = "${runtime}/sops/keys.txt";
     validateSopsFiles = false;
 
-    secrets =
-      lib.genAttrs (map (n: "ssh_${n}") sshKeys) (key: {
-        path = "${runtime}/ssh-secrets/${lib.removePrefix "ssh_" key}";
-      })
-      // lib.optionalAttrs hasHosts {
-        ssh_hosts.path = "${home}/.ssh/hosts.conf";
-      }
-      // lib.genAttrs (map (n: "gpg_${n}") (filterEmpty manifest.gpg)) (key: {
-        path = "${runtime}/gpg-secrets/${lib.removePrefix "gpg_" key}";
-      })
-      // lib.genAttrs (map (n: "wg_${n}") (filterEmpty manifest.wg)) (key: {
-        path = "${runtime}/wireguard/${lib.removePrefix "wg_" key}.conf";
-      })
-      // {
-        kubeconfig.path = "${runtime}/kube/config";
-      };
+    secrets = {
+      github_token.path = "${runtime}/nix/github-token";
+    };
   };
 
-  # Ensure sops-nix waits for age key to be exported from keyring
+  # Ensure sops-nix waits for age key export
   systemd.user.services.sops-nix = {
     Unit = {
       After = [ "secrets-unlock.service" ];
@@ -55,13 +41,14 @@ in
   home.activation.secretsDirs = lib.hm.dag.entryBefore [ "checkLinkTargets" ] ''
     mkdir -p "${home}/.ssh" "${home}/.kube" "${home}/.gnupg"
     chmod 700 "${home}/.ssh" "${home}/.kube" "${home}/.gnupg"
+    mkdir -p "${runtime}/nix"
+    chmod 700 "${runtime}/nix"
   '';
 
-  # SSH config - include user's custom hosts file
+  # SSH config - include hosts.conf from tmpfs (pulled from BW)
   programs.ssh = {
     enable = true;
-    enableDefaultConfig = false;
-    includes = [ "~/.ssh/hosts.conf" ];
+    includes = [ "${runtime}/ssh/hosts.conf" ];
     matchBlocks."*" = {
       addKeysToAgent = "yes";
       identitiesOnly = false;

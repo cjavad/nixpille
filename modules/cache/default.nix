@@ -2,10 +2,6 @@ rec {
   # Single source of truth - each cache as a pair
   caches = [
     {
-      url = "https://hyprland.cachix.org";
-      key = "hyprland.cachix.org-1:a7pgxzMz7+VO9dXvamGIBD/FX5BsGNN7CQ56MWRspLU=";
-    }
-    {
       url = "https://nix-community.cachix.org";
       key = "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=";
     }

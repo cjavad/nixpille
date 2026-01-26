@@ -2,7 +2,8 @@
 
 {
   imports = [
-    ../../hosts/common
+    ../common/global
+    ../common/users/javad.nix
   ];
 
   networking.hostName = "gha";
