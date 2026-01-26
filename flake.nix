@@ -53,7 +53,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Blue light filter (has flake.nix)
     sunsetr = {
       url = "github:psi4j/sunsetr";
       inputs.nixpkgs.follows = "nixpkgs";

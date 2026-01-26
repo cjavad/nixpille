@@ -205,9 +205,8 @@ in
         "$mainMod, minus, togglespecialworkspace, scratchpad"
         "$mainMod SHIFT, minus, movetoworkspace, special:scratchpad"
 
-        # OLED tools
+        # Blue light filter
         "$mainMod SHIFT, N, exec, sunsetr toggle"
-        "$mainMod SHIFT, O, exec, pgrep -f hyproled && hyproled off || hyproled -s"
       ];
 
       # Repeat bindings (volume/brightness)
@@ -373,8 +372,8 @@ in
 
     listener {
         timeout = 330
-        on-timeout = hyprctl dispatch dpms off && hyproled -s
-        on-resume = hyprctl dispatch dpms on && hyproled off
+        on-timeout = hyprctl dispatch dpms off
+        on-resume = hyprctl dispatch dpms on
     }
 
     listener {
@@ -441,25 +440,6 @@ in
       Install.WantedBy = [ "graphical-session.target" ];
     };
 
-    hyproled-shift = {
-      Unit = {
-        Description = "Shift OLED pixels to prevent burn-in";
-        After = [ "graphical-session.target" ];
-      };
-      Service = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.custom.hyproled}/bin/hyproled -s";
-      };
-    };
-  };
-
-  systemd.user.timers.hyproled-shift = {
-    Unit.Description = "Hourly OLED pixel shift";
-    Timer = {
-      OnCalendar = "hourly";
-      Persistent = true;
-    };
-    Install.WantedBy = [ "timers.target" ];
   };
 
   # Sunsetr config (blue light filter with geolocation)
@@ -489,9 +469,8 @@ in
     hypridle
     hyprlock
 
-    # OLED tools
+    # Blue light filter
     inputs.sunsetr.packages.${pkgs.stdenv.hostPlatform.system}.default
-    custom.hyproled
 
     # Screenshots & recording
     grim
