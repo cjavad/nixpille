@@ -13,6 +13,9 @@
     XDG_SESSION_TYPE = "wayland";
     XDG_SESSION_DESKTOP = "Hyprland";
     MOZ_ENABLE_WAYLAND = "1";
+    # Electron apps native Wayland
+    NIXOS_OZONE_WL = "1";
+    ELECTRON_OZONE_PLATFORM_HINT = "auto";
   };
 
   xdg.portal = {

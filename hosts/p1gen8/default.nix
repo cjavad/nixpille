@@ -22,6 +22,12 @@
     nvidiaBusId = "PCI:1:0:0";
   };
 
+  # ThinkPad battery charge thresholds (extend battery lifespan)
+  services.tlp.settings = {
+    START_CHARGE_THRESH_BAT0 = 75;
+    STOP_CHARGE_THRESH_BAT0 = 80;
+  };
+
   networking.hostName = "p1gen8";
   system.stateVersion = "25.11";
 }

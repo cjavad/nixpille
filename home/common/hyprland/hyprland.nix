@@ -26,6 +26,18 @@ let
       notify-send "Recording started" "$file"
     end
   '';
+
+  layoutSwitchScript = pkgs.writeScript "layout-switch" ''
+    #!${pkgs.fish}/bin/fish
+    # Switch to next keyboard layout
+    hyprctl switchxkblayout all next
+
+    # Get current layout
+    set layout (hyprctl devices -j | ${pkgs.jq}/bin/jq -r '.keyboards[] | select(.main == true) | .active_keymap')
+
+    # Show via SwayOSD
+    swayosd-client --custom-message "$layout" 2>/dev/null || notify-send -t 1500 "$layout"
+  '';
 in
 {
   wayland.windowManager.hyprland = {
@@ -34,8 +46,8 @@ in
     systemd.enable = false; # Using UWSM
 
     settings = {
-      # Monitor - scale can be overridden per-host
-      monitor = [ ",preferred,auto,1.6" ];
+      # Monitor - host-specific overrides in home/javad/<host>/
+      monitor = [ ",preferred,auto,1" ];
 
       # Environment
       env = [
@@ -43,12 +55,21 @@ in
         "QT_WAYLAND_DISABLE_WINDOWDECORATION,1"
         "QT_AUTO_SCREEN_SCALE_FACTOR,1"
         "HYPRLAND_NO_SD_NOTIFY,1"
+        "HYPRLAND_NO_RT,1"
+        "GDK_SCALE,1"
+        "XCURSOR_SIZE,24"
+        "HYPRCURSOR_SIZE,24"
       ];
+
+      # XWayland scaling
+      xwayland = {
+        force_zero_scaling = true;
+      };
 
       # Input
       input = {
         kb_layout = "dk,us";
-        kb_options = "grp:alt_shift_toggle";
+        # Layout switching handled by keybind with SwayOSD notification
         follow_mouse = 1;
         sensitivity = 0;
         touchpad = {
@@ -113,8 +134,8 @@ in
       };
 
       # Variables
-      "$mainMod" = "ALT";
-      "$secondaryMod" = "SUPER";
+      "$mainMod" = "SUPER";
+      "$secondaryMod" = "ALT";
 
       # Keybindings
       bind = [
@@ -124,13 +145,8 @@ in
 
         # Vicinae
         "$mainMod, space, exec, vicinae toggle"
-        "$secondaryMod, space, exec, vicinae toggle"
-        "CTRL ALT, space, exec, vicinae toggle"
-        ", F12, exec, vicinae toggle"
         "$mainMod, C, exec, vicinae clipboard"
-        "$secondaryMod, V, exec, vicinae clipboard"
         "$mainMod, E, exec, vicinae emoji"
-        "$secondaryMod, period, exec, vicinae emoji"
 
         # Window management
         "$mainMod, Q, killactive,"
@@ -207,6 +223,10 @@ in
 
         # Blue light filter
         "$mainMod SHIFT, N, exec, sunsetr toggle"
+
+        # Keyboard layout switch (Alt+Shift)
+        "$secondaryMod, Shift_L, exec, ${layoutSwitchScript}"
+        "SHIFT, Alt_L, exec, ${layoutSwitchScript}"
       ];
 
       # Repeat bindings (volume/brightness)
