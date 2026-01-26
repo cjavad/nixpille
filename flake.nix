@@ -64,6 +64,7 @@
     let
       lib = nixpkgs.lib;
 
+      # Discover directories with default.nix (excluding "common")
       discover =
         dir:
         lib.filterAttrs (
@@ -71,7 +72,13 @@
           type == "directory" && name != "common" && builtins.pathExists (dir + "/${name}/default.nix")
         ) (builtins.readDir dir);
 
+      # Discover directories (excluding "common")
+      discoverDirs =
+        dir:
+        lib.filterAttrs (name: type: type == "directory" && name != "common") (builtins.readDir dir);
+
       hosts = builtins.attrNames (discover ./hosts);
+      users = builtins.attrNames (discoverDirs ./home);
 
       system = "x86_64-linux";
 
@@ -133,22 +140,33 @@
             };
           };
 
+        # Export as user@host (e.g., javad@vm) for `home-manager switch --flake /etc/nixos`
         homeConfigurations =
           let
             pkgs = nixpkgs.legacyPackages.${system};
             mkHome =
-              host:
+              user: host:
               home-manager.lib.homeManagerConfiguration {
                 inherit pkgs;
                 extraSpecialArgs = specialArgs;
                 modules = homeModules ++ [
-                  ./home/javad/${host}
+                  ./home/${user}/${host}
                   inputs.stylix.homeModules.stylix
                   inputs.sops-nix.homeManagerModules.sops
                 ];
               };
+            # For each user, discover their host configs
+            userHosts = lib.listToAttrs (lib.flatten (map (user:
+              let
+                userHostDirs = builtins.attrNames (discover ./home/${user});
+              in
+              map (host: {
+                name = "${user}@${host}";
+                value = mkHome user host;
+              }) userHostDirs
+            ) users));
           in
-          lib.genAttrs hosts (host: mkHome host);
+          userHosts;
       };
 
       perSystem =

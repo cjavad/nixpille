@@ -50,10 +50,13 @@
       };
     };
     # Proxy flake for `home-manager switch` without arguments
+    # Uses hostname to select config (e.g., homeConfigurations.vm)
     configFile."home-manager/flake.nix".text = ''
       {
         inputs.nixpille.url = "path:/etc/nixos";
-        outputs = { nixpille, ... }: { inherit (nixpille) homeConfigurations; };
+        outputs = { nixpille, ... }: {
+          homeConfigurations.javad = nixpille.homeConfigurations.''${builtins.getEnv "HOSTNAME"};
+        };
       }
     '';
   };
