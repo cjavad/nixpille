@@ -5,12 +5,12 @@
     enable = true;
     autoEnable = true;
 
-    # Catppuccin Mocha base16
+    # OLED-friendly Catppuccin Mocha (true black base)
     base16Scheme = {
-      base00 = "1e1e2e"; # base
-      base01 = "181825"; # mantle
-      base02 = "313244"; # surface0
-      base03 = "45475a"; # surface1
+      base00 = "000000"; # TRUE BLACK for OLED
+      base01 = "0a0a0f"; # near-black mantle
+      base02 = "1a1a24"; # dark surface
+      base03 = "2a2a3a"; # slightly lighter
       base04 = "585b70"; # surface2
       base05 = "cdd6f4"; # text
       base06 = "f5e0dc"; # rosewater
@@ -25,9 +25,9 @@
       base0F = "f2cdcd"; # flamingo
     };
 
-    # Wallpaper (solid color matching base)
+    # Wallpaper (true black for OLED)
     image = pkgs.runCommand "wallpaper.png" { } ''
-      ${pkgs.imagemagick}/bin/magick -size 3840x2160 xc:#1e1e2e PNG:$out
+      ${pkgs.imagemagick}/bin/magick -size 3840x2160 xc:#000000 PNG:$out
     '';
 
     polarity = "dark";
@@ -72,9 +72,8 @@
       terminal = 0.95;
     };
 
-    # Enable all targets - Stylix handles theming
+    # Enable targets - Stylix handles theming
     targets = {
-      # These will be styled automatically
       gtk.enable = true;
       gnome.enable = true;
     };

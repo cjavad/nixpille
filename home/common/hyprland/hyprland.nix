@@ -1,7 +1,9 @@
 {
   pkgs,
+  lib,
   pkgs-unstable,
   config,
+  inputs,
   ...
 }:
 
@@ -57,27 +59,21 @@ in
         };
       };
 
-      # General (colors handled by Stylix)
+      # General - OLED-friendly (minimal borders)
       general = {
-        gaps_in = 5;
-        gaps_out = 10;
-        border_size = 2;
+        gaps_in = 3;
+        gaps_out = 6;
+        border_size = 1;
         layout = "dwindle";
+        "col.active_border" = lib.mkForce "rgba(89b4fa40)"; # Semi-transparent blue (OLED)
+        "col.inactive_border" = lib.mkForce "rgba(00000000)"; # Fully transparent (OLED)
       };
 
-      # Decoration (colors handled by Stylix)
+      # Decoration - OLED-friendly (no blur/shadows for true blacks)
       decoration = {
-        rounding = 8;
-        blur = {
-          enabled = true;
-          size = 3;
-          passes = 1;
-        };
-        shadow = {
-          enabled = true;
-          range = 4;
-          render_power = 3;
-        };
+        rounding = 6;
+        blur.enabled = false;
+        shadow.enabled = false;
       };
 
       # Animations
@@ -208,6 +204,10 @@ in
         # Scratchpad
         "$mainMod, minus, togglespecialworkspace, scratchpad"
         "$mainMod SHIFT, minus, movetoworkspace, special:scratchpad"
+
+        # OLED tools
+        "$mainMod SHIFT, N, exec, sunsetr toggle"
+        "$mainMod SHIFT, O, exec, pgrep -f hyproled && hyproled off || hyproled -s"
       ];
 
       # Repeat bindings (volume/brightness)
@@ -304,7 +304,7 @@ in
 
     background {
         monitor =
-        color = rgba(30, 30, 46, 1.0)
+        color = rgba(0, 0, 0, 1.0)
     }
 
     label {
@@ -337,7 +337,7 @@ in
         dots_spacing = 0.15
         dots_center = true
         outer_color = rgba(137, 180, 250, 1.0)
-        inner_color = rgba(30, 30, 46, 0.9)
+        inner_color = rgba(0, 0, 0, 0.9)
         font_color = rgba(205, 214, 244, 1.0)
         fade_on_empty = false
         placeholder_text = <i>Password...</i>
@@ -373,8 +373,8 @@ in
 
     listener {
         timeout = 330
-        on-timeout = hyprctl dispatch dpms off
-        on-resume = hyprctl dispatch dpms on
+        on-timeout = hyprctl dispatch dpms off && hyproled -s
+        on-resume = hyprctl dispatch dpms on && hyproled off
     }
 
     listener {
@@ -426,13 +426,72 @@ in
       };
       Install.WantedBy = [ "graphical-session.target" ];
     };
+
+    sunsetr = {
+      Unit = {
+        Description = "Automatic blue light filter based on sunrise/sunset";
+        After = [ "graphical-session.target" ];
+        PartOf = [ "graphical-session.target" ];
+      };
+      Service = {
+        ExecStart = "${inputs.sunsetr.packages.${pkgs.stdenv.hostPlatform.system}.default}/bin/sunsetr";
+        Restart = "on-failure";
+        RestartSec = 5;
+      };
+      Install.WantedBy = [ "graphical-session.target" ];
+    };
+
+    hyproled-shift = {
+      Unit = {
+        Description = "Shift OLED pixels to prevent burn-in";
+        After = [ "graphical-session.target" ];
+      };
+      Service = {
+        Type = "oneshot";
+        ExecStart = "${pkgs.custom.hyproled}/bin/hyproled -s";
+      };
+    };
   };
+
+  systemd.user.timers.hyproled-shift = {
+    Unit.Description = "Hourly OLED pixel shift";
+    Timer = {
+      OnCalendar = "hourly";
+      Persistent = true;
+    };
+    Install.WantedBy = [ "timers.target" ];
+  };
+
+  # Sunsetr config (blue light filter with geolocation)
+  xdg.configFile."sunsetr/config.toml".text = ''
+    [general]
+    backend = "hyprland"
+
+    [location]
+    latitude = 55.6761
+    longitude = 12.5683
+
+    [temperature]
+    day = 6500
+    night = 4000
+
+    [transition]
+    duration = 30
+
+    [gamma]
+    day = 1.0
+    night = 0.85
+  '';
 
   # Packages
   home.packages = with pkgs; [
     # Hyprland ecosystem
     hypridle
     hyprlock
+
+    # OLED tools
+    inputs.sunsetr.packages.${pkgs.stdenv.hostPlatform.system}.default
+    custom.hyproled
 
     # Screenshots & recording
     grim

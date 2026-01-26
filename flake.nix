@@ -52,6 +52,12 @@
       url = "github:nix-community/lanzaboote";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # Blue light filter (has flake.nix)
+    sunsetr = {
+      url = "github:psi4j/sunsetr";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -63,6 +69,11 @@
     }:
     let
       lib = nixpkgs.lib;
+
+      # Custom packages overlay
+      customOverlay = final: prev: {
+        custom = import ./pkgs { pkgs = final; };
+      };
 
       # Discover directories with default.nix (excluding "common")
       discover =
@@ -113,6 +124,7 @@
         nixpkgs.lib.nixosSystem {
           inherit system specialArgs;
           modules = [
+            { nixpkgs.overlays = [ customOverlay ]; }
             ./hosts/${name}
             inputs.stylix.nixosModules.stylix
             homeManagerModule
@@ -145,6 +157,7 @@
             pkgs = import nixpkgs {
               inherit system;
               config.allowUnfree = true;
+              overlays = [ customOverlay ];
             };
             mkHome =
               user: host:

@@ -22,6 +22,7 @@
         ];
         modules-center = [ "clock" ];
         modules-right = [
+          "custom/nightlight"
           "custom/github"
           "idle_inhibitor"
           "pulseaudio"
@@ -56,6 +57,15 @@
           format = "";
           tooltip = true;
           tooltip-format = "Submap: {}";
+        };
+
+        "custom/nightlight" = {
+          format = "{}";
+          interval = 30;
+          exec = ''pgrep -x sunsetr > /dev/null && echo "" || echo ""'';
+          tooltip = true;
+          tooltip-format = "Blue light filter (sunsetr)";
+          on-click = "sunsetr toggle";
         };
 
         "custom/github" = {
@@ -191,23 +201,24 @@
       };
     };
 
-    # Compact flat CSS
+    # OLED-optimized CSS (true black backgrounds)
     style = ''
-      /* Floating island - compact */
+      /* OLED-optimized: True black backgrounds */
       window#waybar {
         background-color: transparent;
       }
 
       window#waybar > box {
-        background-color: alpha(@base00, 0.9);
-        border-radius: 12px;
-        border: 1px solid alpha(@base02, 0.5);
-        padding: 0 8px;
+        background-color: rgba(0, 0, 0, 0.95);
+        border-radius: 8px;
+        border: 1px solid rgba(30, 30, 46, 0.3);
+        padding: 0 6px;
       }
 
-      /* Flat module styling - no backgrounds */
+      /* All modules: transparent background */
       #workspaces,
       #submap,
+      #custom-nightlight,
       #custom-github,
       #clock,
       #idle_inhibitor,
@@ -217,14 +228,15 @@
       #network,
       #battery,
       #tray {
-        padding: 0 8px;
-        margin: 4px 2px;
+        padding: 0 6px;
+        margin: 3px 1px;
         background-color: transparent;
-        border-radius: 6px;
+        border-radius: 4px;
         transition: all 0.15s ease;
       }
 
-      /* Hover highlight */
+      /* Hover: subtle highlight */
+      #custom-nightlight:hover,
       #custom-github:hover,
       #clock:hover,
       #idle_inhibitor:hover,
@@ -233,153 +245,103 @@
       #bluetooth:hover,
       #network:hover,
       #battery:hover {
-        background-color: alpha(@base02, 0.5);
+        background-color: rgba(49, 50, 68, 0.4);
       }
 
       /* Workspaces */
-      #workspaces {
-        padding: 0 2px;
-      }
+      #workspaces { padding: 0 2px; }
 
       #workspaces button {
-        padding: 0 6px;
-        color: @base04;
+        padding: 0 5px;
+        color: rgba(205, 214, 244, 0.6);
         border-radius: 4px;
-        margin: 3px 1px;
+        margin: 2px 1px;
         background-color: transparent;
       }
 
       #workspaces button:hover {
-        background-color: alpha(@base03, 0.5);
+        background-color: rgba(49, 50, 68, 0.4);
         color: @base05;
       }
 
       #workspaces button.active {
-        background-color: @base0D;
-        color: @base00;
+        background-color: rgba(137, 180, 250, 0.8);
+        color: #000000;
       }
 
       #workspaces button.urgent {
-        background-color: @base08;
-        color: @base00;
+        background-color: rgba(243, 139, 168, 0.8);
+        color: #000000;
       }
 
       #workspaces button.special {
-        background-color: @base0E;
-        color: @base00;
+        background-color: rgba(203, 166, 247, 0.8);
+        color: #000000;
       }
 
-      /* Submap - only visible when active */
+      /* Submap */
       #submap {
-        background-color: @base09;
-        color: @base00;
+        background-color: rgba(250, 179, 135, 0.9);
+        color: #000000;
         font-weight: bold;
       }
+
+      /* Nightlight */
+      #custom-nightlight { color: @base0A; }
 
       /* GitHub */
-      #custom-github {
-        color: @base05;
-      }
+      #custom-github { color: @base05; }
 
       /* Clock */
-      #clock {
-        color: @base05;
-        font-weight: bold;
+      #clock { color: @base05; font-weight: bold; }
+
+      /* Status icons: dimmed by default */
+      #idle_inhibitor,
+      #pulseaudio,
+      #backlight,
+      #bluetooth,
+      #network,
+      #battery {
+        color: rgba(205, 214, 244, 0.7);
       }
 
-      /* Idle inhibitor */
-      #idle_inhibitor {
-        color: @base04;
-      }
-
-      #idle_inhibitor.activated {
-        color: @base0A;
-      }
-
-      /* Audio */
-      #pulseaudio {
-        color: @base05;
-      }
-
-      #pulseaudio.muted {
-        color: @base04;
-      }
-
-      /* Backlight */
-      #backlight {
-        color: @base0A;
-      }
-
-      /* Bluetooth */
-      #bluetooth {
-        color: @base0D;
-      }
-
-      #bluetooth.disabled,
-      #bluetooth.off {
-        color: @base04;
-      }
-
-      #bluetooth.connected {
-        color: @base0C;
-      }
-
-      /* Network */
-      #network {
-        color: @base0C;
-      }
-
-      #network.disconnected {
-        color: @base04;
-      }
+      #idle_inhibitor.activated { color: @base0A; }
+      #pulseaudio.muted { color: rgba(205, 214, 244, 0.3); }
+      #backlight { color: @base0A; }
+      #bluetooth { color: @base0D; }
+      #bluetooth.disabled, #bluetooth.off { color: rgba(205, 214, 244, 0.3); }
+      #bluetooth.connected { color: @base0C; }
+      #network { color: @base0C; }
+      #network.disconnected { color: rgba(205, 214, 244, 0.3); }
 
       /* Battery */
-      #battery {
-        color: @base0B;
-      }
-
-      #battery.charging {
-        color: @base0B;
-      }
-
-      #battery.warning:not(.charging) {
-        color: @base0A;
-      }
-
+      #battery { color: @base0B; }
+      #battery.charging { color: @base0B; }
+      #battery.warning:not(.charging) { color: @base0A; }
       #battery.critical:not(.charging) {
         color: @base08;
         animation: blink 0.5s linear infinite alternate;
       }
 
-      @keyframes blink {
-        to { color: @base09; }
-      }
+      @keyframes blink { to { color: @base09; } }
 
       /* Tray */
-      #tray {
-        padding: 0 4px;
-      }
-
-      #tray > .passive {
-        -gtk-icon-effect: dim;
-      }
-
+      #tray { padding: 0 4px; }
+      #tray > .passive { -gtk-icon-effect: dim; }
       #tray > .needs-attention {
         -gtk-icon-effect: highlight;
-        background-color: @base08;
+        background-color: rgba(243, 139, 168, 0.8);
         border-radius: 4px;
       }
 
       /* Tooltips */
       tooltip {
-        background-color: @base00;
-        border: 1px solid @base02;
+        background-color: rgba(0, 0, 0, 0.95);
+        border: 1px solid rgba(49, 50, 68, 0.5);
         border-radius: 6px;
       }
 
-      tooltip label {
-        color: @base05;
-      }
+      tooltip label { color: @base05; }
     '';
   };
 }
