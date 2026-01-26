@@ -22,18 +22,17 @@ task fmt             # Format nix files
 
 ## Secrets
 
-Encrypted with sops/age, backed up to Bitwarden.
+Secrets are encrypted with age and stored in `~/.config/sops/secrets.yaml`. The age key lives in GNOME Keyring and is exported to tmpfs at login. sops-nix decrypts secrets to `/run/user/<uid>/` so plaintext never touches disk. Bitwarden is used for backup/sync across machines.
 
 ```sh
 task secrets:login   # Auth with Bitwarden
-task secrets:pull    # Restore from Bitwarden
-task secrets:push    # Backup to Bitwarden
-task secrets:sync    # Sync local files → sops (ssh, wg, gpg, k9s)
-task secrets:add     # Add single secret: KEY=name FILE=path or VALUE=string
-task secrets:edit    # Pull → edit → push
+task secrets:pull    # Pull from Bitwarden
+task secrets:push    # Push to Bitwarden
+task secrets:sync    # Sync local files to sops
+task secrets:add     # Add secret: FILE=path or KEYID=gpg
 ```
 
-Naming: `ssh_<file>`, `wg_<name>`, `gpg_<name>` → auto-deployed on rebuild.
+Naming: `ssh_*`, `gpg_*`, `wg_*` are auto-deployed on rebuild.
 
 ## Structure
 

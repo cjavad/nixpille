@@ -1,8 +1,5 @@
-# SOPS encryption rules
-# User age key located at: ~/.config/sops/age/keys.txt
-
+# Age key in keyring, exported to tmpfs at login. Secrets decrypted to /run/user/<uid>/ by sops-nix.
 keys:
-  # User age key
   - &javad age1zpq5wztx3yp6gvjg9vxldttcgt367ljcrtfc5nlk9qx8kydvyqmsehvfqm
 
 creation_rules:
