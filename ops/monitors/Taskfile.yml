@@ -1,0 +1,31 @@
+version: '3'
+silent: true
+
+vars:
+  SCRIPTS: ./ops/monitors
+
+tasks:
+  detect:
+    desc: Detect connected monitors
+    cmds:
+      - fish -c "source {{.SCRIPTS}}/lib/monitors.fish && monitors_detect"
+
+  edit:
+    desc: Edit kanshi config
+    cmds:
+      - fish -c "source {{.SCRIPTS}}/lib/monitors.fish && monitors_edit"
+
+  reload:
+    desc: Reload kanshi
+    cmds:
+      - fish -c "source {{.SCRIPTS}}/lib/monitors.fish && monitors_reload"
+
+  profiles:
+    desc: Show kanshi profiles
+    cmds:
+      - fish -c "source {{.SCRIPTS}}/lib/monitors.fish && monitors_profiles"
+
+  status:
+    desc: Show kanshi status
+    cmds:
+      - fish -c "source {{.SCRIPTS}}/lib/monitors.fish && monitors_status"

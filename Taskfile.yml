@@ -9,6 +9,9 @@ includes:
   secrets:
     taskfile: ./ops/secrets/Taskfile.yml
     dir: .
+  monitors:
+    taskfile: ./ops/monitors/Taskfile.yml
+    dir: .
 
 tasks:
   default:
@@ -90,3 +93,14 @@ tasks:
     desc: Remove build artifacts
     cmds:
       - rm -f result *.qcow2
+
+  # Home Manager
+  hm:
+    desc: Switch home-manager config
+    cmds:
+      - home-manager switch --flake .
+
+  hm:build:
+    desc: Build home-manager config
+    cmds:
+      - home-manager build --flake .

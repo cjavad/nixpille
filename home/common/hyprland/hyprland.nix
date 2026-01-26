@@ -32,8 +32,8 @@ in
     systemd.enable = false; # Using UWSM
 
     settings = {
-      # Monitor
-      monitor = [ ",preferred,auto,1" ];
+      # Monitor - scale can be overridden per-host
+      monitor = [ ",preferred,auto,1.5" ];
 
       # Environment
       env = [

@@ -3,5 +3,6 @@
   imports = [
     ./waybar.nix
     ./mako.nix
+    ./kanshi.nix
   ];
 }
