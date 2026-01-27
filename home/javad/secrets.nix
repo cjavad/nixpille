@@ -12,7 +12,7 @@ let
 in
 {
   imports = [
-    ../common/secrets
+    ../../modules/home-manager/secrets
     inputs.sops-nix.homeManagerModules.sops
   ];
 

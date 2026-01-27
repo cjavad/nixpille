@@ -106,14 +106,53 @@ task switch HOST=<hostname>
 
 After rebuild, secrets are auto-exported from keyring on login via `secrets-unlock.service`.
 
+## Using the Secrets Module in Your Flake
+
+The secrets module is shareable. Add to your flake:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    home-manager.url = "github:nix-community/home-manager";
+
+    nixpille = {
+      url = "github:javad/nixpille";  # or your fork
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { nixpkgs, home-manager, nixpille, ... }: {
+    homeConfigurations.myuser = home-manager.lib.homeManagerConfiguration {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      modules = [
+        nixpille.homeModules.secrets
+        {
+          services.secrets = {
+            enable = true;
+            keyringService = "myproject";  # Your keyring namespace
+            # gpgAgent.enable = true;       # Default: true
+            # gnomeKeyring.enable = true;   # Default: true
+          };
+        }
+      ];
+    };
+  };
+}
+```
+
+Then run `secrets pull` to sync from your Bitwarden vault.
+
 ## Structure
 
 ```
 hosts/              # Machine configs (per-host)
-modules/            # NixOS modules (shared)
+modules/            # Shareable modules
+  home-manager/     #   Home-manager modules
+    secrets/        #     Secrets management (shareable)
 home/               # Home-manager configs (per-user)
 pkgs/               # Custom packages
-  secrets-cli/      #   Secrets management CLI
+  secrets-cli/      #   Secrets CLI (standalone package)
 ops/                # Operational tooling
   tests/            #   Nix tests
 ```

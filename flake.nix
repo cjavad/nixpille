@@ -137,6 +137,11 @@
       ];
 
       flake = {
+        # Shareable home-manager modules
+        homeModules = {
+          secrets = ./modules/home-manager/secrets;
+        };
+
         nixosConfigurations =
           let
             hostConfigs = lib.genAttrs hosts mkHost;

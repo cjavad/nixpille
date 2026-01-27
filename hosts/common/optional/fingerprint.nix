@@ -15,13 +15,14 @@
 
   # PAM integration for fingerprint auth
   security.pam.services = {
-    # GDM login (fingerprint works natively with GDM)
-    gdm-password.fprintAuth = true;
+    # SDDM: Disable fingerprint (broken UX - no feedback, appears frozen)
+    # Workaround: Press Enter on empty password field, then touch sensor
+    sddm.fprintAuth = false;
 
-    # Screen locker
+    # Hyprlock: Enable fingerprint (supports parallel auth in recent versions)
     hyprlock.fprintAuth = true;
 
-    # Sudo (optional - comment out if you prefer password-only)
+    # Sudo
     sudo.fprintAuth = true;
 
     # Polkit (for GUI privilege escalation)

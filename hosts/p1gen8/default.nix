@@ -3,7 +3,7 @@
     ./hardware.nix
     ../common/global
     ../common/optional/hyprland.nix
-    ../common/optional/gdm.nix
+    ../common/optional/sddm.nix
     ../common/optional/stylix.nix
     ../common/optional/audio.nix
     ../common/optional/bluetooth.nix

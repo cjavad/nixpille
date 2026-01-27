@@ -1,11 +1,15 @@
-# Secrets management module
+# Secrets management module for home-manager
 #
-# Uses secrets-cli for BW/keyring operations
 # Provides:
-# - GNOME Keyring for age key + file storage
-# - Age key export to tmpfs for sops-nix
-# - Files export from keyring to tmpfs
+# - secrets-cli for Bitwarden + GNOME Keyring integration
+# - Automatic export from keyring to tmpfs on login
 # - GPG agent with SSH support
+# - Environment variables for sops-nix integration
+#
+# Usage:
+#   imports = [ nixpille.homeManagerModules.secrets ];
+#   services.secrets.enable = true;
+#
 {
   config,
   pkgs,
@@ -15,12 +19,69 @@
 
 let
   cfg = config.services.secrets;
+
+  # Derive runtime dir from UID if not specified
+  defaultRuntimeDir =
+    if config.home.uid != null then "/run/user/${toString config.home.uid}" else "/run/user/1000"; # Fallback
+
   runtime = cfg.runtimeDir;
+
+  # Build secrets-cli package
+  secrets-cli = pkgs.stdenvNoCC.mkDerivation {
+    pname = "secrets-cli";
+    version = "2.0.0";
+
+    src = ./cli;
+
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+
+    installPhase = ''
+            runHook preInstall
+
+            mkdir -p $out/share/secrets-cli
+            cp -r . $out/share/secrets-cli/
+
+            mkdir -p $out/bin
+            cat > $out/bin/secrets << 'WRAPPER'
+      #!/usr/bin/env fish
+      set -gx SECRETS_LIB_DIR @out@/share/secrets-cli
+      source $SECRETS_LIB_DIR/secrets $argv
+      WRAPPER
+
+            substituteInPlace $out/bin/secrets --replace-fail '@out@' "$out"
+            chmod +x $out/bin/secrets
+
+            wrapProgram $out/bin/secrets \
+              --prefix PATH : ${
+                lib.makeBinPath [
+                  pkgs.fish
+                  pkgs.bitwarden-cli
+                  pkgs.libsecret
+                  pkgs.jq
+                  pkgs.coreutils
+                  pkgs.gnupg
+                  pkgs.openssh
+                  pkgs.pinentry-qt
+                  pkgs.findutils
+                ]
+              }
+
+            runHook postInstall
+    '';
+
+    meta = with lib; {
+      description = "Secrets management CLI via Bitwarden and GNOME Keyring";
+      license = licenses.mit;
+      platforms = platforms.linux;
+      mainProgram = "secrets";
+    };
+  };
+
   secretTool = "${pkgs.libsecret}/bin/secret-tool";
   jq = "${pkgs.jq}/bin/jq";
   coreutils = "${pkgs.coreutils}/bin";
 
-  # Export age key + files from keyring to tmpfs (runs on login)
+  # Export secrets from keyring to tmpfs (runs on login)
   unlockScript = pkgs.writers.writeFish "secrets-unlock" ''
     set -l SOPS_DIR ${runtime}/sops
 
@@ -96,6 +157,13 @@ in
   options.services.secrets = {
     enable = lib.mkEnableOption "secrets management via Bitwarden and GNOME Keyring";
 
+    package = lib.mkOption {
+      type = lib.types.package;
+      default = secrets-cli;
+      defaultText = lib.literalExpression "secrets-cli (bundled)";
+      description = "The secrets-cli package to use";
+    };
+
     keyringService = lib.mkOption {
       type = lib.types.str;
       default = "nixpille";
@@ -104,8 +172,16 @@ in
 
     runtimeDir = lib.mkOption {
       type = lib.types.str;
-      default = "/run/user/1000";
+      default = defaultRuntimeDir;
       description = "XDG_RUNTIME_DIR path";
+    };
+
+    gnomeKeyring = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Enable GNOME Keyring for secrets storage";
+      };
     };
 
     gpgAgent = {
@@ -133,11 +209,27 @@ in
         description = "Maximum cache TTL in seconds";
       };
     };
+
+    unlockService = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Enable automatic secrets export on login";
+      };
+    };
+
+    sessionVariables = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Set environment variables for SSH_AUTH_SOCK, SOPS_AGE_KEY_FILE, KUBECONFIG";
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
     # GNOME Keyring for secrets storage
-    services.gnome-keyring = {
+    services.gnome-keyring = lib.mkIf cfg.gnomeKeyring.enable {
       enable = true;
       components = [
         "secrets"
@@ -155,7 +247,7 @@ in
     };
 
     # Export secrets from keyring on login
-    systemd.user.services.secrets-unlock = {
+    systemd.user.services.secrets-unlock = lib.mkIf cfg.unlockService.enable {
       Unit = {
         Description = "Export secrets from keyring to tmpfs";
         After = [ "gnome-keyring-daemon.service" ];
@@ -169,12 +261,12 @@ in
     };
 
     home.packages = [
-      pkgs.custom.secrets-cli
+      cfg.package
       pkgs.libsecret
       pkgs.seahorse
     ];
 
-    home.sessionVariables = {
+    home.sessionVariables = lib.mkIf cfg.sessionVariables.enable {
       SSH_AUTH_SOCK = "$XDG_RUNTIME_DIR/gnupg/S.gpg-agent.ssh";
       SOPS_AGE_KEY_FILE = "$XDG_RUNTIME_DIR/sops/keys.txt";
       KUBECONFIG = "$XDG_RUNTIME_DIR/kube/config";

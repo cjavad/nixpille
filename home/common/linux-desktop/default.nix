@@ -1,8 +1,8 @@
 # Full Linux desktop environment (Hyprland + Wayland + apps)
 # Shortcut for common desktop workstation setup
+# Note: secrets module imported separately via user's secrets.nix
 {
   imports = [
-    ../secrets
     ../wayland
     ../hyprland
     ../terminals/kitty.nix
