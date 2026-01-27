@@ -51,13 +51,19 @@ function gpg_pull
         printf '%s' "$armor" > "$keyfile"
 
         # Import from file
-        gpg --batch --import "$keyfile" 2>/dev/null
+        set -l gpg_err (gpg --batch --import "$keyfile" 2>&1)
         set -l gpg_ret $status
         if test $gpg_ret -eq 0
             item_ok "$name"
             set imported (math $imported + 1)
         else
-            item_fail "$name" "gpg import failed"
+            # Extract meaningful error from gpg output
+            set -l err_msg (echo "$gpg_err" | grep -i -E "error|failed|invalid|no valid" | head -1)
+            if test -z "$err_msg"
+                set err_msg "gpg exit code $gpg_ret"
+            end
+            item_fail "$name" "$err_msg"
+            log_debug "GPG full output: $gpg_err"
             set failed (math $failed + 1)
         end
 

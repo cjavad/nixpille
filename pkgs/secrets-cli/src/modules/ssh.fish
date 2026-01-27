@@ -37,10 +37,29 @@ function ssh_pull
             continue
         end
 
+        # Normalize line endings (remove Windows \r)
+        set privkey (string replace -a \r '' "$privkey")
+
+        # Validate key format
+        if not string match -q "-----BEGIN *PRIVATE KEY-----*" "$privkey"
+            item_fail "$name" "invalid key format (missing header)"
+            log_debug "Key starts with: "(string sub -l 50 "$privkey")
+            set failed (math $failed + 1)
+            continue
+        end
+
         # Write to tmpfs temporarily
         set -l keyfile "$runtime/$name"
-        printf '%s\n' "$privkey" > "$keyfile"
+        # Write key with proper line ending (no extra newline if already has one)
+        if string match -q '*
+' "$privkey"
+            printf '%s' "$privkey" > "$keyfile"
+        else
+            printf '%s\n' "$privkey" > "$keyfile"
+        end
         chmod 600 "$keyfile"
+
+        log_debug "Key file: $keyfile, size: "(wc -c < "$keyfile")" bytes"
 
         # Add to agent
         # Allow SSH_ASKPASS for encrypted keys (uses system askpass like ksshaskpass)
