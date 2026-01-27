@@ -169,46 +169,24 @@ function files_export
     log_info "Exported $exported files to $SECRETS_STORE_DIR"
 end
 
-function files_push
-    # Push from local (keyring manifest) -> BW
-    # Local manifest is source of truth
+function files_push -a filename
+    # Push from local -> BW
+    # If filename provided, only push that file (fast)
+    # Otherwise push all files (slow, full sync)
     bw_session || return 1
 
-    # Get local manifest from keyring
-    set -l manifest (keyring_get_file "_manifest")
-    if test -z "$manifest"
-        log_error "No manifest in keyring"
-        log_info "Run 'secrets pull' or 'secrets files add' first"
+    set -l item (bw_get_item $SECRETS_FILES_ITEM)
+    if test -z "$item"
+        log_error "Item not found: $SECRETS_FILES_ITEM"
+        log_info "Run 'secrets files add' first"
         return 1
     end
 
-    # Get or create BW item
-    set -l item (bw_get_item $SECRETS_FILES_ITEM)
-    set -l item_id ""
+    set -l item_id (printf '%s' "$item" | jq -r '.id')
 
-    if test -z "$item"
-        log_info "Creating $SECRETS_FILES_ITEM..."
-        set -l created (jq -n --arg name "$SECRETS_FILES_ITEM" \
-            '{type: 2, name: $name, notes: "", secureNote: {type: 0}}' \
-            | _bw_run encode | _bw_run create item | string collect)
-        set item_id (printf '%s' "$created" | jq -r '.id')
-    else
-        set item_id (printf '%s' "$item" | jq -r '.id')
-
-        # Delete existing attachments (except _manifest.json)
-        for att_id in (printf '%s' "$item" | jq -r '.attachments[]? | select(.fileName != "_manifest.json") | .id // empty')
-            bw_delete_attachment $item_id $att_id 2>/dev/null
-        end
-    end
-
-    set -l synced 0
-
-    # Create temp dir for uploads (BW uses actual filename from path)
-    set -l tmpdir (mktemp -d -p $SECRETS_RUNTIME_DIR "push-XXXXXX")
-
-    # Upload each file from keyring/store
-    for filename in (printf '%s' "$manifest" | jq -r 'keys[]')
-        # Try store first, fall back to keyring
+    # Single file push (fast path)
+    if test -n "$filename"
+        # Get content from store or keyring
         set -l content ""
         if test -f $SECRETS_STORE_DIR/$filename
             set content (cat $SECRETS_STORE_DIR/$filename)
@@ -217,32 +195,80 @@ function files_push
         end
 
         if test -z "$content"
-            item_fail $filename "not in store or keyring"
-            continue
+            log_error "File not found in store or keyring: $filename"
+            return 1
         end
 
-        # Write to temp file with exact filename (BW uses basename)
+        # Delete existing attachment for this file
+        set -l att_id (printf '%s' "$item" | jq -r --arg f "$filename" '.attachments[]? | select(.fileName == $f) | .id // empty')
+        test -n "$att_id" && bw_delete_attachment $item_id $att_id 2>/dev/null
+
+        # Upload new version
+        set -l tmpdir (mktemp -d -p $SECRETS_RUNTIME_DIR "push-XXXXXX")
         set -l tmp $tmpdir/$filename
         printf '%s' "$content" > $tmp
         chmod 600 $tmp
 
-        # Upload to BW
         if bw_create_attachment $item_id $tmp >/dev/null
             item_ok $filename "synced"
-            set synced (math $synced + 1)
         else
             item_fail $filename "upload failed"
+            runtime_shred_file $tmp
+            rmdir $tmpdir 2>/dev/null
+            return 1
+        end
+
+        runtime_shred_file $tmp
+        rmdir $tmpdir 2>/dev/null
+        bw_sync
+        return 0
+    end
+
+    # Full push (all files)
+    set -l manifest (keyring_get_file "_manifest")
+    if test -z "$manifest"
+        log_error "No manifest in keyring"
+        log_info "Run 'secrets pull' or 'secrets files add' first"
+        return 1
+    end
+
+    # Delete existing attachments (except _manifest.json)
+    for att_id in (printf '%s' "$item" | jq -r '.attachments[]? | select(.fileName != "_manifest.json") | .id // empty')
+        bw_delete_attachment $item_id $att_id 2>/dev/null
+    end
+
+    set -l synced 0
+    set -l tmpdir (mktemp -d -p $SECRETS_RUNTIME_DIR "push-XXXXXX")
+
+    for f in (printf '%s' "$manifest" | jq -r 'keys[]')
+        set -l content ""
+        if test -f $SECRETS_STORE_DIR/$f
+            set content (cat $SECRETS_STORE_DIR/$f)
+        else
+            set content (keyring_get_file $f)
+        end
+
+        if test -z "$content"
+            item_fail $f "not in store or keyring"
+            continue
+        end
+
+        set -l tmp $tmpdir/$f
+        printf '%s' "$content" > $tmp
+        chmod 600 $tmp
+
+        if bw_create_attachment $item_id $tmp >/dev/null
+            item_ok $f "synced"
+            set synced (math $synced + 1)
+        else
+            item_fail $f "upload failed"
         end
 
         runtime_shred_file $tmp
     end
 
-    # Clean up temp dir
     rmdir $tmpdir 2>/dev/null
-
-    # Update manifest attachment
     _manifest_set $item_id "$manifest"
-
     bw_sync
     log_info "Synced $synced files (local -> BW)"
 end

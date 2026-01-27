@@ -36,7 +36,7 @@ function _ssh_add_key -a name -a privkey
     set -l ssh_err (ssh-add "$keyfile" 2>&1)
     set -l ret $status
 
-    runtime_shred_file "$keyfile"
+    # Keep key in tmpfs for IdentityFile usage (cleared on reboot)
 
     if test $ret -eq 0
         item_ok "$name" "loaded"

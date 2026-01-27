@@ -19,23 +19,33 @@ function keyring_delete -a service key
     secret-tool clear service $service type $key 2>/dev/null
 end
 
-function keyring_list -a service
-    # List all keys for a service
+function keyring_list -a service label_prefix
+    # List all keys for a service by label prefix
+    # Returns the key portion after the prefix (e.g., "SSH: foo" -> "ssh:foo")
     secret-tool search --all service $service 2>/dev/null \
-        | grep "^attribute.type" \
-        | cut -d= -f2 \
-        | tr -d ' '
+        | grep "^label = $label_prefix" \
+        | sed "s/^label = $label_prefix//" \
+        | string trim
 end
 
 function keyring_list_prefix -a service prefix
     # List all keys for a service that start with prefix
-    secret-tool search --all service $service 2>/dev/null \
-        | grep "^attribute.type" \
-        | cut -d= -f2 \
-        | tr -d ' ' \
-        | while read -l key
-            string match -q "$prefix*" "$key" && echo $key
-        end
+    # Maps prefix to label: "ssh:" -> "SSH: ", "gpg:" -> "GPG: "
+    switch $prefix
+        case "ssh:"
+            keyring_list $service "SSH: " | while read -l name
+                echo "ssh:$name"
+            end
+        case "gpg:"
+            keyring_list $service "GPG: " | while read -l name
+                echo "gpg:$name"
+            end
+        case "*"
+            # Fallback for other prefixes
+            keyring_list $service "nixpille: " | while read -l name
+                string match -q "$prefix*" "$name" && echo $name
+            end
+    end
 end
 
 function keyring_has -a service key
