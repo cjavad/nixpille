@@ -1,156 +1,80 @@
-# Core utilities: logging, errors, result pattern
-#
-# Logging levels: debug < info < warn < error
-
-# Color codes (disabled with SECRETS_NO_COLOR=1)
-set -g _C_RESET ""
-set -g _C_RED ""
-set -g _C_GREEN ""
-set -g _C_YELLOW ""
-set -g _C_BLUE ""
-set -g _C_DIM ""
-set -g _C_BOLD ""
-
-function _init_colors
-    if not set -q SECRETS_NO_COLOR; and isatty stderr
-        set -g _C_RESET (printf '\033[0m')
-        set -g _C_RED (printf '\033[31m')
-        set -g _C_GREEN (printf '\033[32m')
-        set -g _C_YELLOW (printf '\033[33m')
-        set -g _C_BLUE (printf '\033[34m')
-        set -g _C_DIM (printf '\033[2m')
-        set -g _C_BOLD (printf '\033[1m')
-    end
-end
-
-_init_colors
-
-# Log level to numeric value
-function _log_level_num -a level
-    switch $level
-        case debug
-            echo 0
-        case info
-            echo 1
-        case warn
-            echo 2
-        case error
-            echo 3
-        case '*'
-            echo 1
-    end
-end
+# Core utilities: logging, errors
+# No colors - just simple output
 
 function _should_log -a level
-    set -l current (string lower -- "$SECRETS_LOG_LEVEL")
+    set -l current "$SECRETS_LOG_LEVEL"
     test -z "$current" && set current info
-    test (_log_level_num $level) -ge (_log_level_num $current)
+
+    switch $level
+        case debug
+            test "$current" = debug
+        case info
+            test "$current" = debug -o "$current" = info
+        case warn
+            test "$current" = debug -o "$current" = info -o "$current" = warn
+        case error
+            return 0
+    end
 end
 
 function log_debug
     _should_log debug || return 0
-    set -l msg "$argv"
-    echo "$_C_DIM[debug]$_C_RESET $msg" >&2
+    echo "[debug] $argv" >&2
 end
 
 function log_info
     _should_log info || return 0
-    set -l msg "$argv"
-    echo "$_C_BLUE[info]$_C_RESET $msg" >&2
+    echo "[info] $argv" >&2
 end
 
 function log_warn
     _should_log warn || return 0
-    set -l msg "$argv"
-    echo "$_C_YELLOW[warn]$_C_RESET $msg" >&2
+    echo "[warn] $argv" >&2
 end
 
 function log_error
-    _should_log error || return 0
-    set -l msg "$argv"
-    echo "$_C_RED[error]$_C_RESET $msg" >&2
+    echo "[error] $argv" >&2
 end
 
 function log_success
     _should_log info || return 0
-    set -l msg "$argv"
-    echo "$_C_GREEN[ok]$_C_RESET $msg" >&2
+    echo "[ok] $argv" >&2
 end
 
 function log_fail
-    _should_log error || return 0
-    set -l msg "$argv"
-    echo "$_C_RED[fail]$_C_RESET $msg" >&2
+    echo "[fail] $argv" >&2
 end
 
-# Result pattern - for functions that return values
-function result_ok
-    set -g REPLY $argv
-    return 0
-end
-
-function result_err
-    set -l msg "$argv"
-    log_error "$msg"
-    set -g REPLY ""
-    return 1
-end
-
-# Assertions
-function assert_file -a path
-    if not test -f "$path"
-        result_err "File not found: $path"
-        return 1
-    end
-end
-
-function assert_dir -a path
-    if not test -d "$path"
-        result_err "Directory not found: $path"
-        return 1
-    end
-end
-
-function assert_command -a cmd
-    if not command -q $cmd
-        result_err "Command not found: $cmd"
-        return 1
-    end
-end
-
-# Fatal error - exit with message
 function die
-    log_error "$argv"
+    echo "[fatal] $argv" >&2
     exit 1
 end
 
-# Print section header
 function section -a title
     echo ""
-    echo "$_C_BOLD=== $title ===$_C_RESET"
+    echo "=== $title ==="
 end
 
-# Print item with status
 function item_ok -a name -a detail
     if test -n "$detail"
-        echo "  $_C_GREEN+$_C_RESET $name $_C_DIM($detail)$_C_RESET"
+        echo "  + $name ($detail)"
     else
-        echo "  $_C_GREEN+$_C_RESET $name"
+        echo "  + $name"
     end
 end
 
 function item_fail -a name -a detail
     if test -n "$detail"
-        echo "  $_C_RED-$_C_RESET $name $_C_DIM($detail)$_C_RESET"
+        echo "  - $name ($detail)"
     else
-        echo "  $_C_RED-$_C_RESET $name"
+        echo "  - $name"
     end
 end
 
 function item_skip -a name -a detail
     if test -n "$detail"
-        echo "  $_C_DIM~$_C_RESET $name $_C_DIM($detail)$_C_RESET"
+        echo "  ~ $name ($detail)"
     else
-        echo "  $_C_DIM~$_C_RESET $name"
+        echo "  ~ $name"
     end
 end
