@@ -42,14 +42,26 @@ function ssh_pull
         printf '%s\n' "$privkey" > "$keyfile"
         chmod 600 "$keyfile"
 
-        # Add to agent (suppress passphrase prompt for unencrypted keys)
-        SSH_ASKPASS_REQUIRE=never ssh-add "$keyfile" 2>/dev/null
+        # Add to agent
+        # Allow SSH_ASKPASS for encrypted keys (uses system askpass like ksshaskpass)
+        set -l ssh_err (ssh-add "$keyfile" 2>&1)
         set -l add_ret $status
         if test $add_ret -eq 0
             item_ok "$name"
             set loaded (math $loaded + 1)
         else
-            item_fail "$name" "ssh-add failed"
+            # Parse common ssh-add errors
+            if string match -q "*agent refused*" "$ssh_err"
+                item_fail "$name" "agent refused - is SSH_AUTH_SOCK set?"
+            else if string match -q "*invalid format*" "$ssh_err"
+                item_fail "$name" "invalid key format"
+            else if string match -q "*passphrase*" "$ssh_err"; or string match -q "*encrypted*" "$ssh_err"
+                item_fail "$name" "key is encrypted (passphrase required)"
+            else if string match -q "*No such file*" "$ssh_err"
+                item_fail "$name" "key file missing"
+            else
+                item_fail "$name" "ssh-add failed: $ssh_err"
+            end
             set failed (math $failed + 1)
         end
 

@@ -192,7 +192,8 @@ function bw_list_notes -a prefix
     test -z "$items" && return 1
 
     if test -n "$prefix"
-        _bw_json "$items" --arg p "$prefix" '.[] | select(.type == 2) | select(.name | startswith($p)) | "\(.id)\t\(.name)"'
+        # Can't use _bw_json here - need --arg for prefix
+        echo "$items" | jq -r --arg p "$prefix" '.[] | select(.type == 2) | select(.name | startswith($p)) | "\(.id)\t\(.name)"' 2>/dev/null
     else
         _bw_json "$items" '.[] | select(.type == 2) | "\(.id)\t\(.name)"'
     end
