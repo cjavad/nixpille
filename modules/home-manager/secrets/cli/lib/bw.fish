@@ -125,7 +125,8 @@ function bw_login
 
         case locked
             # Just unlock
-            return (bw_session)
+            bw_session
+            return $status
 
         case unauthenticated
             # Need full login
