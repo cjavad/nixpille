@@ -1,12 +1,51 @@
 # GPG key management
 #
-# BW secure notes -> GPG keyring
+# Architecture:
+#   - BW secure notes (gpg-* prefix) store armored keys
+#   - Keys cached in keyring for offline export
+#   - Keys imported to GPG keyring on pull/export
 #
-# FIX: Uses jq -j for exact content preservation (no newline corruption)
-# FIX: Imports from file instead of stdin (more reliable)
+# Flow:
+#   pull:   BW -> keyring -> gpg keyring
+#   export: keyring -> gpg keyring (offline)
+
+function _gpg_import_key -a name -a armor
+    # Import armored key to GPG keyring
+    set -l runtime (runtime_ensure gpg-import)
+    set -l keyfile "$runtime/"(string replace -a '/' '_' "$name")".asc"
+
+    # Normalize key format: BW may store keys with spaces instead of newlines
+    set armor (printf '%s' "$armor" \
+        | string replace -a \r '' \
+        | string replace -r '(-----BEGIN [A-Z ]+ BLOCK-----) +' '$1\n' \
+        | string replace -r ' +(-----END [A-Z ]+ BLOCK-----)' '\n$1' \
+        | string collect)
+
+    printf '%s\n' "$armor" > "$keyfile"
+
+    set -l gpg_err (gpg --batch --import "$keyfile" 2>&1)
+    set -l ret $status
+
+    runtime_shred_file "$keyfile"
+    rmdir "$runtime" 2>/dev/null
+
+    # Check if key was actually imported (gpg may return non-zero with warnings)
+    if string match -q "*secret key imported*" "$gpg_err"
+        item_ok "$name" "imported"
+        return 0
+    else if test $ret -eq 0
+        item_ok "$name" "imported"
+        return 0
+    else
+        set -l err_msg (printf '%s' "$gpg_err" | grep -i -E "error|failed" | grep -v "invalid armor" | head -1)
+        test -z "$err_msg" && set err_msg "gpg exit $ret"
+        item_fail "$name" "$err_msg"
+        return 1
+    end
+end
 
 function gpg_pull
-    # Pull GPG keys from BW to GPG keyring
+    # Pull GPG keys from BW -> keyring -> gpg keyring
     bw_session || return 1
 
     set -l keys (bw_list_notes "$SECRETS_GPG_PREFIX")
@@ -15,69 +54,76 @@ function gpg_pull
         return 0
     end
 
-    set -l runtime (runtime_ensure gpg-import)
     set -l imported 0
     set -l failed 0
 
     for line in $keys
         set -l parts (string split \t -- "$line")
         if test (count $parts) -lt 2
-            log_warn "Malformed entry: $line"
             continue
         end
         set -l id $parts[1]
         set -l name $parts[2]
 
-        log_debug "Processing: $name ($id)"
-
-        # Get item and extract notes with jq -j (preserves exact content)
+        # Get armored key from BW
         set -l item (bw_get_item "$id")
         if test -z "$item"
-            item_fail "$name" "failed to get item"
+            item_fail "$name" "failed to get"
             set failed (math $failed + 1)
             continue
         end
 
-        # FIX: Use jq -j to preserve exact armored key (no trailing newline corruption)
         set -l armor (echo "$item" | jq -j '.notes // empty')
         if test -z "$armor"
-            item_fail "$name" "no notes content"
+            item_fail "$name" "no content"
             set failed (math $failed + 1)
             continue
         end
 
-        # FIX: Write to file first, then import from file
-        set -l keyfile "$runtime/"(string replace -a '/' '_' "$name")".asc"
-        printf '%s' "$armor" > "$keyfile"
+        # Store in keyring (key name IS the tracking mechanism)
+        printf '%s' "$armor" | keyring_store $SECRETS_KEYRING_SERVICE "gpg:$name" "GPG: $name"
 
-        # Import from file
-        set -l gpg_err (gpg --batch --import "$keyfile" 2>&1)
-        set -l gpg_ret $status
-        if test $gpg_ret -eq 0
-            item_ok "$name"
+        # Import to GPG keyring
+        if _gpg_import_key "$name" "$armor"
             set imported (math $imported + 1)
         else
-            # Extract meaningful error from gpg output
-            set -l err_msg (echo "$gpg_err" | grep -i -E "error|failed|invalid|no valid" | head -1)
-            if test -z "$err_msg"
-                set err_msg "gpg exit code $gpg_ret"
-            end
-            item_fail "$name" "$err_msg"
-            log_debug "GPG full output: $gpg_err"
             set failed (math $failed + 1)
         end
-
-        # Clean up
-        runtime_shred_file "$keyfile"
     end
-
-    rmdir "$runtime" 2>/dev/null
 
     log_info "Imported $imported keys"
-    if test $failed -gt 0
-        log_warn "Failed: $failed"
+    test $failed -gt 0 && log_warn "Failed: $failed"
+end
+
+function gpg_export
+    # Export GPG keys from keyring -> gpg keyring (offline)
+    set -l keys (keyring_list_prefix $SECRETS_KEYRING_SERVICE "gpg:")
+    if test -z "$keys"
+        log_info "No GPG keys in keyring (run 'secrets pull' first)"
+        return 0
     end
-    return 0
+
+    set -l imported 0
+    set -l failed 0
+
+    for key in $keys
+        set -l name (string replace "gpg:" "" $key)
+        set -l armor (keyring_get $SECRETS_KEYRING_SERVICE "$key")
+        if test -z "$armor"
+            item_fail "$name" "not in keyring"
+            set failed (math $failed + 1)
+            continue
+        end
+
+        if _gpg_import_key "$name" "$armor"
+            set imported (math $imported + 1)
+        else
+            set failed (math $failed + 1)
+        end
+    end
+
+    log_info "Imported $imported keys (offline)"
+    test $failed -gt 0 && log_warn "Failed: $failed"
 end
 
 function gpg_add -a keyid -a name
@@ -85,25 +131,21 @@ function gpg_add -a keyid -a name
     if test -z "$keyid"
         echo "Usage: secrets gpg add <keyid> [name]"
         echo "Example: secrets gpg add ABC123"
-        echo "Example: secrets gpg add ABC123 gpg-work"
         return 1
     end
 
     bw_session || return 1
 
-    # Export armored secret key
     set -l armor (gpg --export-secret-keys --armor "$keyid" 2>/dev/null)
     if test -z "$armor"
         log_error "Could not export key: $keyid"
-        log_error "Make sure the key exists: gpg --list-secret-keys"
         return 1
     end
 
-    # Generate name from email if not provided
+    # Generate name if not provided
     if test -z "$name"
         set -l email (gpg --list-keys "$keyid" 2>/dev/null | grep uid | head -1 | string match -r '<(.+)>' | tail -1)
         if test -n "$email"
-            # Sanitize email for item name
             set name "$SECRETS_GPG_PREFIX"(string replace -a '@' '-' (string replace -a '.' '-' "$email"))
         else
             set name "$SECRETS_GPG_PREFIX$keyid"
@@ -117,11 +159,15 @@ function gpg_add -a keyid -a name
 
     log_info "Adding: $name"
     bw_create_note "$name" "$armor"
+
+    # Also store in keyring
+    printf '%s' "$armor" | keyring_store $SECRETS_KEYRING_SERVICE "gpg:$name" "GPG: $name"
+
     log_success "Added: $name"
 end
 
 function gpg_rm -a name
-    # Remove GPG key from Bitwarden
+    # Remove GPG key from Bitwarden and keyring
     if test -z "$name"
         echo "Usage: secrets gpg rm <name>"
         return 1
@@ -129,33 +175,33 @@ function gpg_rm -a name
 
     bw_session || return 1
 
-    # Find by name
-    set -l id (_bw_get_item_id "$name" 2)
-    if test -z "$id"
+    set -l item (bw_get_item "$name")
+    if test -z "$item"
         log_error "Not found: $name"
         return 1
     end
 
+    set -l id (echo $item | jq -r '.id')
     bw_delete_item "$id"
+
+    # Remove from keyring
+    keyring_delete $SECRETS_KEYRING_SERVICE "gpg:$name"
+
     log_success "Removed: $name"
 end
 
 function gpg_list
-    # List GPG keys in Bitwarden
-    bw_session || return 1
-
-    echo "GPG keys in Bitwarden:"
-    set -l keys (bw_list_notes "$SECRETS_GPG_PREFIX")
+    # List GPG keys from keyring
+    echo "GPG keys:"
+    set -l keys (keyring_list_prefix $SECRETS_KEYRING_SERVICE "gpg:")
     if test -z "$keys"
-        echo "  (none)"
+        echo "  (none in keyring - run 'secrets pull')"
         return 0
     end
 
-    for line in $keys
-        set -l parts (string split \t -- "$line")
-        if test (count $parts) -ge 2
-            echo "  $parts[2]"
-        end
+    for key in $keys
+        set -l name (string replace "gpg:" "" $key)
+        echo "  $name"
     end
 end
 

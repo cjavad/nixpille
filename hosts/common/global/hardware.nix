@@ -28,7 +28,10 @@
     };
   };
   services.fwupd.enable = true;
-  services.libinput.enable = true;
+  services.libinput = {
+    enable = true;
+    touchpad.disableWhileTyping = false;
+  };
 
   # Disable logind lid handling - Hyprland handles this with power-aware script
   services.logind.settings.Login = {

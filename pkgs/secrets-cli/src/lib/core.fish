@@ -78,3 +78,10 @@ function item_skip -a name -a detail
         echo "  ~ $name"
     end
 end
+
+function assert_file -a path -a msg
+    if not test -f "$path"
+        log_error "$msg"
+        return 1
+    end
+end

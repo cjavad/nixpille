@@ -14,7 +14,7 @@
   '';
 
   sops = {
-    defaultSopsFile = "/home/javad/.config/sops/secrets.yaml";
+    defaultSopsFile = ../secrets/secrets.yaml;
     age.keyFile = "/run/user/1000/sops/keys.txt";
     validateSopsFiles = false;
 

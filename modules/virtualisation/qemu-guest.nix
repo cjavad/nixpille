@@ -35,6 +35,9 @@
 
   security.sudo-rs.wheelNeedsPassword = lib.mkForce false;
 
+  # Override qemu-vm.nix disabling timesyncd
+  services.timesyncd.enable = lib.mkForce true;
+
   users.users.javad = {
     initialPassword = lib.mkForce "test";
   };

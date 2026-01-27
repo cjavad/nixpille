@@ -1,16 +1,48 @@
-# File management via BW + Keyring
+# File management via BW + Keyring + Symlinks
 #
-# BW item (nixpille-files-$USER) holds:
-#   - notes: JSON manifest mapping filename -> target path
-#   - attachments: the actual files
-#
-# Keyring (service=nixpille) holds file contents locally
-# Files are exported from keyring to tmpfs on login
+# Architecture:
+#   - Secrets stored in tmpfs: $XDG_RUNTIME_DIR/secrets/<filename>
+#   - Symlinks created from target paths -> tmpfs
+#   - Keyring holds file contents for offline export
+#   - BW item holds attachments + manifest (filename -> symlink target)
 #
 # Flow:
-#   pull:   BW -> keyring + tmpfs/disk
-#   export: keyring -> tmpfs/disk (offline, runs on login)
-#   sync:   tmpfs/disk -> keyring + BW
+#   pull:   BW -> keyring -> tmpfs + symlinks
+#   export: keyring -> tmpfs + symlinks (offline, runs on login)
+#   sync:   tmpfs -> keyring + BW
+
+set -g SECRETS_STORE_DIR "$SECRETS_RUNTIME_DIR/secrets"
+
+function _manifest_get -a item_id
+    # Read manifest from _manifest.json attachment
+    set -l tmp (runtime_tmpfile "manifest")
+    if bw_get_attachment $item_id "_manifest.json" $tmp 2>/dev/null
+        and test -s $tmp
+        cat $tmp
+        runtime_shred_file $tmp
+        return 0
+    end
+    runtime_shred_file $tmp 2>/dev/null
+    echo "{}"
+end
+
+function _manifest_set -a item_id manifest
+    # Write manifest as _manifest.json attachment
+    # Delete existing _manifest.json attachment if present
+    set -l item (_bw_run get item $item_id 2>/dev/null)
+    set -l att_id (printf '%s' "$item" | jq -r '.attachments[]? | select(.fileName == "_manifest.json") | .id // empty')
+    test -n "$att_id" && bw_delete_attachment $item_id $att_id 2>/dev/null
+
+    # Write to temp file with exact name _manifest.json
+    set -l tmpdir (mktemp -d -p $SECRETS_RUNTIME_DIR "manifest-XXXXXX")
+    set -l tmp $tmpdir/_manifest.json
+    printf '%s' "$manifest" > $tmp
+    chmod 600 $tmp
+
+    bw_create_attachment $item_id $tmp >/dev/null
+    runtime_shred_file $tmp
+    rmdir $tmpdir 2>/dev/null
+end
 
 function _expand_path -a path
     # Expand path variables
@@ -20,8 +52,36 @@ function _expand_path -a path
     echo $path
 end
 
+function _ensure_store
+    # Ensure secrets store directory exists
+    mkdir -p $SECRETS_STORE_DIR
+    chmod 700 $SECRETS_STORE_DIR
+end
+
+function _export_file -a filename dest
+    # Export file to tmpfs and create symlink
+    _ensure_store
+
+    # Write to tmpfs store
+    set -l store_path $SECRETS_STORE_DIR/$filename
+    keyring_get_file $filename > $store_path
+    chmod 600 $store_path
+
+    # Create symlink at target location
+    set -l target (_expand_path $dest)
+    mkdir -p (dirname $target)
+
+    # Remove existing file/symlink
+    rm -f $target
+
+    # Create symlink: target -> store
+    ln -sf $store_path $target
+
+    item_ok $filename "$target -> $store_path"
+end
+
 function files_pull
-    # Pull from BW -> keyring + filesystem
+    # Pull from BW -> keyring -> tmpfs + symlinks
     bw_session || return 1
 
     set -l item (bw_get_item $SECRETS_FILES_ITEM)
@@ -31,20 +91,21 @@ function files_pull
         return 1
     end
 
-    set -l item_id (echo $item | jq -r '.id')
-    set -l manifest (echo $item | jq -r '.notes // "{}"')
-    set -l attachments (echo $item | jq -r '.attachments[]?.fileName // empty')
+    set -l item_id (printf '%s' "$item" | jq -r '.id')
+    set -l manifest (_manifest_get $item_id)
+    set -l attachments (printf '%s' "$item" | jq -r '.attachments[]? | select(.fileName != "_manifest.json") | .fileName // empty')
 
     if test -z "$attachments"
         log_info "No attachments in $SECRETS_FILES_ITEM"
         return 0
     end
 
+    _ensure_store
     set -l pulled 0
     set -l failed 0
 
     for filename in $attachments
-        set -l dest (echo $manifest | jq -r --arg f "$filename" '.[$f] // empty')
+        set -l dest (printf '%s' "$manifest" | jq -r --arg f "$filename" '.[$f] // empty')
 
         if test -z "$dest"
             item_skip $filename "no mapping in manifest"
@@ -60,38 +121,26 @@ function files_pull
             continue
         end
 
-        set -l content (cat $tmp)
+        # Store in keyring (pipe to preserve newlines)
+        cat $tmp | keyring_store_file $filename
         runtime_shred_file $tmp
 
-        # Store in keyring
-        keyring_store_file $filename "$content"
-
-        # Export to destination
-        if test "$dest" = "keyring"
-            # Special case: age key goes to sops keyring entry
-            keyring_store_age_key "$content"
-            item_ok $filename "keyring (sops)"
-        else
-            set -l target (_expand_path $dest)
-            mkdir -p (dirname $target)
-            printf '%s' "$content" > $target
-            chmod 600 $target
-            item_ok $filename $target
-        end
+        # Export to tmpfs + create symlink
+        _export_file $filename $dest
 
         set pulled (math $pulled + 1)
     end
 
     # Store manifest in keyring for offline export
-    keyring_store_file "_manifest" "$manifest"
+    printf '%s' "$manifest" | keyring_store_file "_manifest"
 
-    log_info "Pulled $pulled files"
+    log_info "Pulled $pulled files to $SECRETS_STORE_DIR"
     test $failed -gt 0 && log_warn "Failed: $failed"
     return 0
 end
 
 function files_export
-    # Export from keyring -> filesystem (offline, runs on login)
+    # Export from keyring -> tmpfs + symlinks (offline, runs on login)
     set -l manifest (keyring_get_file "_manifest")
     if test -z "$manifest"
         log_warn "No manifest in keyring"
@@ -99,10 +148,11 @@ function files_export
         return 1
     end
 
+    _ensure_store
     set -l exported 0
 
-    for filename in (echo $manifest | jq -r 'keys[]')
-        set -l dest (echo $manifest | jq -r --arg f "$filename" '.[$f]')
+    for filename in (printf '%s' "$manifest" | jq -r 'keys[]')
+        set -l dest (printf '%s' "$manifest" | jq -r --arg f "$filename" '.[$f]')
         set -l content (keyring_get_file $filename)
 
         if test -z "$content"
@@ -110,91 +160,105 @@ function files_export
             continue
         end
 
-        if test "$dest" = "keyring"
-            # Ensure age key is in sops keyring
-            keyring_store_age_key "$content"
-            item_ok $filename "keyring (sops)"
-        else
-            set -l target (_expand_path $dest)
-            mkdir -p (dirname $target)
-            printf '%s' "$content" > $target
-            chmod 600 $target
-            item_ok $filename $target
-        end
+        # Export to tmpfs + create symlink
+        _export_file $filename $dest
 
         set exported (math $exported + 1)
     end
 
-    log_info "Exported $exported files"
+    log_info "Exported $exported files to $SECRETS_STORE_DIR"
 end
 
-function files_sync
-    # Sync from filesystem -> keyring + BW
+function files_push
+    # Push from local (keyring manifest) -> BW
+    # Local manifest is source of truth
     bw_session || return 1
 
-    set -l item (bw_get_item $SECRETS_FILES_ITEM)
-    if test -z "$item"
-        log_error "Item not found: $SECRETS_FILES_ITEM"
-        log_info "Use 'secrets files add' first"
+    # Get local manifest from keyring
+    set -l manifest (keyring_get_file "_manifest")
+    if test -z "$manifest"
+        log_error "No manifest in keyring"
+        log_info "Run 'secrets pull' or 'secrets files add' first"
         return 1
     end
 
-    set -l item_id (echo $item | jq -r '.id')
-    set -l manifest (echo $item | jq -r '.notes // "{}"')
+    # Get or create BW item
+    set -l item (bw_get_item $SECRETS_FILES_ITEM)
+    set -l item_id ""
 
-    # Delete existing attachments
-    for att_id in (echo $item | jq -r '.attachments[]?.id // empty')
-        bw_delete_attachment $item_id $att_id 2>/dev/null
+    if test -z "$item"
+        log_info "Creating $SECRETS_FILES_ITEM..."
+        set -l created (jq -n --arg name "$SECRETS_FILES_ITEM" \
+            '{type: 2, name: $name, notes: "", secureNote: {type: 0}}' \
+            | _bw_run encode | _bw_run create item | string collect)
+        set item_id (printf '%s' "$created" | jq -r '.id')
+    else
+        set item_id (printf '%s' "$item" | jq -r '.id')
+
+        # Delete existing attachments (except _manifest.json)
+        for att_id in (printf '%s' "$item" | jq -r '.attachments[]? | select(.fileName != "_manifest.json") | .id // empty')
+            bw_delete_attachment $item_id $att_id 2>/dev/null
+        end
     end
 
     set -l synced 0
 
-    # Re-upload each file
-    for filename in (echo $manifest | jq -r 'keys[]')
-        set -l dest (echo $manifest | jq -r --arg f "$filename" '.[$f]')
-        set -l content ""
+    # Create temp dir for uploads (BW uses actual filename from path)
+    set -l tmpdir (mktemp -d -p $SECRETS_RUNTIME_DIR "push-XXXXXX")
 
-        if test "$dest" = "keyring"
-            set content (keyring_get_age_key)
+    # Upload each file from keyring/store
+    for filename in (printf '%s' "$manifest" | jq -r 'keys[]')
+        # Try store first, fall back to keyring
+        set -l content ""
+        if test -f $SECRETS_STORE_DIR/$filename
+            set content (cat $SECRETS_STORE_DIR/$filename)
         else
-            set -l src (_expand_path $dest)
-            test -f $src && set content (cat $src)
+            set content (keyring_get_file $filename)
         end
 
         if test -z "$content"
-            item_fail $filename "source missing"
+            item_fail $filename "not in store or keyring"
             continue
         end
 
-        # Update keyring
-        keyring_store_file $filename "$content"
+        # Write to temp file with exact filename (BW uses basename)
+        set -l tmp $tmpdir/$filename
+        printf '%s' "$content" > $tmp
+        chmod 600 $tmp
 
         # Upload to BW
-        set -l tmp $SECRETS_RUNTIME_DIR/$filename
-        printf '%s' "$content" > $tmp
-        bw_create_attachment $item_id $tmp >/dev/null
-        rm -f $tmp
+        if bw_create_attachment $item_id $tmp >/dev/null
+            item_ok $filename "synced"
+            set synced (math $synced + 1)
+        else
+            item_fail $filename "upload failed"
+        end
 
-        item_ok $filename "synced"
-        set synced (math $synced + 1)
+        runtime_shred_file $tmp
     end
 
-    # Update manifest in keyring
-    keyring_store_file "_manifest" "$manifest"
+    # Clean up temp dir
+    rmdir $tmpdir 2>/dev/null
+
+    # Update manifest attachment
+    _manifest_set $item_id "$manifest"
 
     bw_sync
-    log_info "Synced $synced files"
+    log_info "Synced $synced files (local -> BW)"
 end
 
 function files_add -a src dest
     # Add a new file to BW
     if test -z "$src" -o -z "$dest"
-        echo "Usage: secrets files add <local_path> <target_path>"
+        echo "Usage: secrets files add <local_path> <symlink_path>"
+        echo ""
+        echo "Files are stored in: \$XDG_RUNTIME_DIR/secrets/<filename>"
+        echo "Symlinks are created at: <symlink_path> -> store"
         echo ""
         echo "Examples:"
-        echo "  secrets files add ~/.kube/config '\$XDG_RUNTIME_DIR/kube/config'"
-        echo "  secrets files add ~/.config/sops/age/keys.txt keyring"
-        echo "  secrets files add ~/.ssh/hosts.conf '\$XDG_RUNTIME_DIR/ssh/hosts.conf'"
+        echo "  secrets files add ~/.kube/config '\$HOME/.kube/config'"
+        echo "  secrets files add /tmp/keys.txt '\$XDG_RUNTIME_DIR/sops/keys.txt'"
+        echo "  secrets files add /tmp/hosts.conf '\$HOME/.ssh/hosts.conf'"
         return 1
     end
 
@@ -212,35 +276,36 @@ function files_add -a src dest
     if test -z "$item"
         log_info "Creating $SECRETS_FILES_ITEM..."
         set -l created (jq -n --arg name "$SECRETS_FILES_ITEM" \
-            '{type: 2, name: $name, notes: "{}", secureNote: {type: 0}}' \
-            | _bw_run encode | _bw_run create item)
-        set item_id (echo $created | jq -r '.id')
+            '{type: 2, name: $name, notes: "", secureNote: {type: 0}}' \
+            | _bw_run encode | _bw_run create item | string collect)
+        set item_id (printf '%s' "$created" | jq -r '.id')
     else
-        set item_id (echo $item | jq -r '.id')
-        set manifest (echo $item | jq -r '.notes // "{}"')
+        set item_id (printf '%s' "$item" | jq -r '.id')
+        set manifest (_manifest_get $item_id)
     end
 
     set -l filename (basename $src)
-    set -l content (cat $src)
 
-    # Store in keyring
-    keyring_store_file $filename "$content"
+    # Store in keyring (pipe to preserve newlines)
+    cat $src | keyring_store_file $filename
 
     # Upload attachment
     bw_create_attachment $item_id $src >/dev/null
 
     # Update manifest
-    set manifest (echo $manifest | jq --arg f "$filename" --arg d "$dest" '. + {($f): $d}')
+    set manifest (printf '%s' "$manifest" | jq --arg f "$filename" --arg d "$dest" '. + {($f): $d}')
 
-    # Update item notes with manifest
-    echo '{}' | jq --arg notes "$manifest" '{notes: $notes}' \
-        | _bw_run encode | _bw_run edit item $item_id >/dev/null
+    # Update manifest attachment
+    _manifest_set $item_id "$manifest"
 
     # Store manifest in keyring
-    keyring_store_file "_manifest" "$manifest"
+    printf '%s' "$manifest" | keyring_store_file "_manifest"
+
+    # Export immediately
+    _export_file $filename $dest
 
     bw_sync
-    log_success "Added: $filename -> $dest"
+    log_success "Added: $filename (symlink: $dest)"
 end
 
 function files_rm -a filename
@@ -258,30 +323,171 @@ function files_rm -a filename
         return 1
     end
 
-    set -l item_id (echo $item | jq -r '.id')
-    set -l manifest (echo $item | jq -r '.notes // "{}"')
+    set -l item_id (printf '%s' "$item" | jq -r '.id')
+    set -l manifest (_manifest_get $item_id)
+
+    # Get dest for symlink cleanup
+    set -l dest (printf '%s' "$manifest" | jq -r --arg f "$filename" '.[$f] // empty')
 
     # Delete from keyring
     keyring_delete_file $filename
 
+    # Delete from store
+    rm -f $SECRETS_STORE_DIR/$filename
+
+    # Delete symlink
+    if test -n "$dest"
+        set -l target (_expand_path $dest)
+        rm -f $target
+    end
+
     # Delete attachment
-    set -l att_id (echo $item | jq -r --arg f "$filename" '.attachments[]? | select(.fileName == $f) | .id // empty')
+    set -l att_id (printf '%s' "$item" | jq -r --arg f "$filename" '.attachments[]? | select(.fileName == $f) | .id // empty')
     if test -n "$att_id"
         bw_delete_attachment $item_id $att_id
     end
 
     # Update manifest
-    set manifest (echo $manifest | jq --arg f "$filename" 'del(.[$f])')
+    set manifest (printf '%s' "$manifest" | jq --arg f "$filename" 'del(.[$f])')
 
-    # Update item
-    echo '{}' | jq --arg notes "$manifest" '{notes: $notes}' \
-        | _bw_run encode | _bw_run edit item $item_id >/dev/null
+    # Update manifest attachment
+    _manifest_set $item_id "$manifest"
 
     # Update manifest in keyring
-    keyring_store_file "_manifest" "$manifest"
+    printf '%s' "$manifest" | keyring_store_file "_manifest"
 
     bw_sync
     log_success "Removed: $filename"
+end
+
+function files_rename -a oldname newname
+    # Rename a file entry in BW (renames attachment + manifest key)
+    if test -z "$oldname" -o -z "$newname"
+        echo "Usage: secrets files rename <oldname> <newname>"
+        return 1
+    end
+
+    bw_session || return 1
+
+    set -l item (bw_get_item $SECRETS_FILES_ITEM)
+    if test -z "$item"
+        log_error "Item not found: $SECRETS_FILES_ITEM"
+        return 1
+    end
+
+    set -l item_id (printf '%s' "$item" | jq -r '.id')
+    set -l manifest (_manifest_get $item_id)
+
+    # Check old name exists
+    set -l dest (printf '%s' "$manifest" | jq -r --arg f "$oldname" '.[$f] // empty')
+    if test -z "$dest"
+        log_error "File not found in manifest: $oldname"
+        return 1
+    end
+
+    # Get attachment ID
+    set -l att_id (printf '%s' "$item" | jq -r --arg f "$oldname" '.attachments[]? | select(.fileName == $f) | .id // empty')
+    if test -z "$att_id"
+        log_error "Attachment not found: $oldname"
+        return 1
+    end
+
+    # Download old attachment to temp
+    set -l tmp (runtime_tmpfile "rename")
+    if not bw_get_attachment $item_id "$oldname" $tmp
+        runtime_shred_file $tmp
+        log_error "Failed to download $oldname"
+        return 1
+    end
+
+    # Delete old attachment
+    bw_delete_attachment $item_id $att_id
+
+    # Rename temp file and upload
+    set -l tmp_new (runtime_tmpfile "$newname")
+    mv $tmp $tmp_new
+    bw_create_attachment $item_id $tmp_new >/dev/null
+    runtime_shred_file $tmp_new
+
+    # Update manifest: remove old key, add new key with same dest
+    set manifest (printf '%s' "$manifest" | jq --arg old "$oldname" --arg new "$newname" --arg d "$dest" 'del(.[$old]) + {($new): $d}')
+
+    # Update manifest attachment
+    _manifest_set $item_id "$manifest"
+
+    # Update keyring: copy content to new name, delete old
+    set -l content (keyring_get_file $oldname)
+    if test -n "$content"
+        printf '%s' "$content" | keyring_store_file $newname
+        keyring_delete_file $oldname
+    end
+
+    # Rename in store
+    if test -f $SECRETS_STORE_DIR/$oldname
+        mv $SECRETS_STORE_DIR/$oldname $SECRETS_STORE_DIR/$newname
+    end
+
+    # Update symlink to point to new store path
+    set -l target (_expand_path $dest)
+    rm -f $target
+    ln -sf $SECRETS_STORE_DIR/$newname $target
+
+    # Update manifest in keyring
+    printf '%s' "$manifest" | keyring_store_file "_manifest"
+
+    bw_sync
+    log_success "Renamed: $oldname -> $newname"
+end
+
+function files_mv -a filename newdest
+    # Change the symlink destination for a file in manifest
+    if test -z "$filename" -o -z "$newdest"
+        echo "Usage: secrets files mv <filename> <new_symlink_path>"
+        echo ""
+        echo "Changes where the symlink points to (the destination path in manifest)"
+        echo ""
+        echo "Examples:"
+        echo "  secrets files mv config '\$HOME/.kube/config'"
+        echo "  secrets files mv hosts.conf '\$HOME/.ssh/hosts.conf'"
+        return 1
+    end
+
+    bw_session || return 1
+
+    set -l item (bw_get_item $SECRETS_FILES_ITEM)
+    if test -z "$item"
+        log_error "Item not found: $SECRETS_FILES_ITEM"
+        return 1
+    end
+
+    set -l item_id (printf '%s' "$item" | jq -r '.id')
+    set -l manifest (_manifest_get $item_id)
+
+    # Check file exists in manifest
+    set -l olddest (printf '%s' "$manifest" | jq -r --arg f "$filename" '.[$f] // empty')
+    if test -z "$olddest"
+        log_error "File not found in manifest: $filename"
+        return 1
+    end
+
+    # Remove old symlink
+    set -l oldtarget (_expand_path $olddest)
+    rm -f $oldtarget
+
+    # Update manifest with new destination
+    set manifest (printf '%s' "$manifest" | jq --arg f "$filename" --arg d "$newdest" '.[$f] = $d')
+
+    # Update manifest attachment
+    _manifest_set $item_id "$manifest"
+
+    # Update manifest in keyring
+    printf '%s' "$manifest" | keyring_store_file "_manifest"
+
+    # Create new symlink
+    _export_file $filename $newdest
+
+    bw_sync
+    log_success "Moved: $filename -> $newdest"
 end
 
 function files_list
@@ -294,8 +500,12 @@ function files_list
         return 1
     end
 
+    set -l item_id (printf '%s' "$item" | jq -r '.id')
+
     echo "Files in Bitwarden ($SECRETS_FILES_ITEM):"
-    echo $item | jq -r '.notes // "{}"' | jq -r 'to_entries[] | "  \(.key) -> \(.value)"'
+    echo "  Store: \$XDG_RUNTIME_DIR/secrets/<filename>"
+    echo ""
+    _manifest_get $item_id | jq -r 'to_entries[] | "  \(.key) <- \(.value)"'
 end
 
 function files_status
@@ -306,22 +516,39 @@ function files_status
         return 1
     end
 
-    echo "Files:"
-    for filename in (echo $manifest | jq -r 'keys[]')
-        set -l dest (echo $manifest | jq -r --arg f "$filename" '.[$f]')
-        set -l in_keyring (keyring_get_file $filename)
+    echo "Files (store: $SECRETS_STORE_DIR):"
+    for filename in (printf '%s' "$manifest" | jq -r 'keys[]')
+        set -l dest (printf '%s' "$manifest" | jq -r --arg f "$filename" '.[$f]')
+        set -l store_path $SECRETS_STORE_DIR/$filename
+        set -l target (_expand_path $dest)
 
-        if test "$dest" = "keyring"
-            echo -n "  $filename -> keyring: "
-            test -n "$in_keyring" && echo "present" || echo "missing"
-        else
-            set -l target (_expand_path $dest)
-            echo -n "  $filename -> $target: "
-            if test -n "$in_keyring"
-                test -f $target && echo "keyring + fs" || echo "keyring only"
+        echo -n "  $filename: "
+
+        set -l status_parts
+
+        # Check keyring
+        set -l in_keyring (keyring_get_file $filename)
+        test -n "$in_keyring" && set -a status_parts "keyring"
+
+        # Check store
+        test -f $store_path && set -a status_parts "store"
+
+        # Check symlink
+        if test -L $target
+            if test (readlink $target) = $store_path
+                set -a status_parts "symlink"
             else
-                test -f $target && echo "fs only" || echo "missing"
+                set -a status_parts "symlink(wrong)"
             end
+        else if test -f $target
+            set -a status_parts "file(not symlink)"
         end
+
+        if test (count $status_parts) -gt 0
+            echo (string join " + " $status_parts)
+        else
+            echo "missing"
+        end
+        echo "    -> $target"
     end
 end

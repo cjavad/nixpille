@@ -11,6 +11,9 @@
     ../secrets.nix
   ];
 
+  # Laptop: show battery in waybar
+  custom.waybar.showBattery = true;
+
   # P1 Gen8: 3.2K display - use Hyprland recommended 1.6
   wayland.windowManager.hyprland.settings.monitor = lib.mkForce [
     "eDP-1,preferred,auto,1.6"

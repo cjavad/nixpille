@@ -62,7 +62,6 @@
   };
 
   home.packages = with pkgs; [
-    # home-manager provided by programs.home-manager.enable
     gnupg
     nautilus
   ];

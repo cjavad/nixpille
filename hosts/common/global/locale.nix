@@ -1,6 +1,24 @@
 { ... }:
 
 {
+  # Timezone and NTP
+  time.timeZone = "Europe/Copenhagen";
+
+  services.timesyncd = {
+    enable = true;
+    servers = [
+      "0.dk.pool.ntp.org"
+      "1.dk.pool.ntp.org"
+      "2.dk.pool.ntp.org"
+      "3.dk.pool.ntp.org"
+    ];
+    fallbackServers = [
+      "0.europe.pool.ntp.org"
+      "1.europe.pool.ntp.org"
+    ];
+  };
+
+  # Locale
   i18n.defaultLocale = "en_US.UTF-8";
   i18n.extraLocaleSettings = {
     LC_ADDRESS = "en_US.UTF-8";

@@ -82,76 +82,22 @@ let
   jq = "${pkgs.jq}/bin/jq";
   coreutils = "${pkgs.coreutils}/bin";
 
-  # Export secrets from keyring to tmpfs (runs on login)
-  unlockScript = pkgs.writers.writeFish "secrets-unlock" ''
-    set -l SOPS_DIR ${runtime}/sops
-
-    function expand_path -a path
-      set path (string replace -a '$HOME' $HOME $path)
-      set path (string replace -a '$UID' (${coreutils}/id -u) $path)
-      set path (string replace -a '$XDG_RUNTIME_DIR' ${runtime} $path)
-      echo $path
-    end
-
+  # Export secrets from keyring to tmpfs + symlinks (runs on login)
+  unlockScript = pkgs.writeShellScript "secrets-unlock" ''
     # Wait for runtime dir
-    for i in (seq 1 10)
-      test -d ${runtime} && break
-      ${coreutils}/sleep 1
-    end
+    for i in $(seq 1 10); do
+      [ -d "${runtime}" ] && break
+      sleep 1
+    done
 
     # Wait for keyring (up to 30s)
-    set -l keyring_ready false
-    for i in (seq 1 30)
-      if ${secretTool} lookup service sops type age-key 2>/dev/null | read -l key
-        set keyring_ready true
-        break
-      end
-      ${coreutils}/sleep 1
-    end
+    for i in $(seq 1 30); do
+      ${secretTool} lookup service ${cfg.keyringService} type _manifest >/dev/null 2>&1 && break
+      sleep 1
+    done
 
-    if not $keyring_ready
-      echo "Keyring not ready after 30s"
-      exit 1
-    end
-
-    # Export age key
-    set -l age_key (${secretTool} lookup service sops type age-key 2>/dev/null)
-    if test -n "$age_key"
-      ${coreutils}/mkdir -p $SOPS_DIR
-      ${coreutils}/chmod 700 $SOPS_DIR
-      printf '%s' "$age_key" > $SOPS_DIR/keys.txt
-      ${coreutils}/chmod 600 $SOPS_DIR/keys.txt
-      echo "Age key -> $SOPS_DIR/keys.txt"
-    end
-
-    # Export files from keyring
-    set -l manifest (${secretTool} lookup service ${cfg.keyringService} type _manifest 2>/dev/null)
-    if test -z "$manifest"
-      echo "No file manifest in keyring (run: secrets pull)"
-      exit 0
-    end
-
-    for filename in (echo $manifest | ${jq} -r 'keys[]')
-      set -l dest (echo $manifest | ${jq} -r --arg f "$filename" '.[$f]')
-      set -l content (${secretTool} lookup service ${cfg.keyringService} type $filename 2>/dev/null)
-
-      if test -z "$content"
-        echo "  $filename: not in keyring"
-        continue
-      end
-
-      if test "$dest" = "keyring"
-        echo "  $filename -> keyring (sops)"
-      else
-        set -l target (expand_path $dest)
-        ${coreutils}/mkdir -p (${coreutils}/dirname $target)
-        printf '%s' "$content" > $target
-        ${coreutils}/chmod 600 $target
-        echo "  $filename -> $target"
-      end
-    end
-
-    echo "Secrets exported"
+    # Run secrets export
+    ${cfg.package}/bin/secrets export
   '';
 in
 {
@@ -263,6 +209,7 @@ in
 
     home.packages = [
       cfg.package
+      pkgs.bitwarden-cli
       pkgs.libsecret
       pkgs.seahorse
     ];

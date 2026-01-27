@@ -39,7 +39,10 @@
       url = "github:vicinaehq/extensions";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    zen-browser.url = "github:0xc000022070/zen-browser-flake";
+    zen-browser = {
+      url = "github:0xc000022070/zen-browser-flake";
+      inputs.home-manager.follows = "home-manager";
+    };
     firefox-addons.url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
     nix-flatpak.url = "github:gmodena/nix-flatpak";
 
@@ -113,6 +116,7 @@
         home-manager = {
           useGlobalPkgs = true;
           useUserPackages = true;
+          backupFileExtension = "hm-bak";
           sharedModules = homeModules;
           extraSpecialArgs = specialArgs;
         };

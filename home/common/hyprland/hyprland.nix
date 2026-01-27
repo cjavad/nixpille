@@ -27,17 +27,6 @@ let
     end
   '';
 
-  layoutSwitchScript = pkgs.writeScript "layout-switch" ''
-    #!${pkgs.fish}/bin/fish
-    # Switch to next keyboard layout
-    hyprctl switchxkblayout all next
-
-    # Get current layout
-    set layout (hyprctl devices -j | ${pkgs.jq}/bin/jq -r '.keyboards[] | select(.main == true) | .active_keymap')
-
-    # Show via SwayOSD
-    swayosd-client --custom-message "$layout" 2>/dev/null || notify-send -t 1500 "$layout"
-  '';
 in
 {
   wayland.windowManager.hyprland = {
@@ -68,12 +57,12 @@ in
 
       # Input
       input = {
-        kb_layout = "dk,us";
-        # Layout switching handled by keybind with SwayOSD notification
+        kb_layout = "dk";
         follow_mouse = 1;
         sensitivity = 0;
         touchpad = {
           natural_scroll = true;
+          disable_while_typing = false;
         };
         touchdevice = {
           enabled = true;
@@ -134,6 +123,13 @@ in
         inactive_timeout = 5;
       };
 
+      # Touchpad gestures (Hyprland 0.53+ syntax)
+      # Only 'workspace' action is supported for gestures
+      gesture = [
+        "3, l, workspace, -1" # 3-finger swipe left - prev workspace
+        "3, r, workspace, +1" # 3-finger swipe right - next workspace
+      ];
+
       # Variables
       "$mainMod" = "SUPER";
       "$secondaryMod" = "ALT";
@@ -146,8 +142,8 @@ in
 
         # Vicinae
         "$mainMod, space, exec, vicinae toggle"
-        "$mainMod, C, exec, vicinae clipboard"
-        "$mainMod, E, exec, vicinae emoji"
+        "$mainMod, C, exec, vicinae 'vicinae://extensions/vicinae/clipboard/history'"
+        "$mainMod, E, exec, vicinae 'vicinae://extensions/vicinae/core/search-emojis'"
 
         # Window management
         "$mainMod, Q, killactive,"
@@ -225,9 +221,6 @@ in
         # Blue light filter
         "$mainMod SHIFT, N, exec, sunsetr toggle"
 
-        # Keyboard layout switch (Alt+Shift)
-        "$secondaryMod, Shift_L, exec, ${layoutSwitchScript}"
-        "SHIFT, Alt_L, exec, ${layoutSwitchScript}"
       ];
 
       # Repeat bindings (volume/brightness)
@@ -427,20 +420,6 @@ in
       };
       Service = {
         ExecStart = "${pkgs.networkmanagerapplet}/bin/nm-applet --indicator";
-        Restart = "on-failure";
-        RestartSec = 5;
-      };
-      Install.WantedBy = [ "graphical-session.target" ];
-    };
-
-    blueman-applet = {
-      Unit = {
-        Description = "Blueman applet";
-        After = [ "graphical-session.target" ];
-        PartOf = [ "graphical-session.target" ];
-      };
-      Service = {
-        ExecStart = "${pkgs.blueman}/bin/blueman-applet";
         Restart = "on-failure";
         RestartSec = 5;
       };

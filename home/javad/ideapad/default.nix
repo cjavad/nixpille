@@ -11,6 +11,9 @@
     ../secrets.nix
   ];
 
+  # Laptop: show battery in waybar
+  custom.waybar.showBattery = true;
+
   # IdeaPad display scaling
   wayland.windowManager.hyprland.settings.monitor = lib.mkForce [
     "eDP-1,preferred,auto,1.6"

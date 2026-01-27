@@ -20,7 +20,7 @@
         profile.outputs = [
           {
             criteria = "*";
-            scale = 1.5;
+            scale = 1.6;
           }
         ];
       }
