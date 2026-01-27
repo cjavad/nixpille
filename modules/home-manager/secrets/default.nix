@@ -37,37 +37,37 @@ let
     nativeBuildInputs = [ pkgs.makeWrapper ];
 
     installPhase = ''
-      runHook preInstall
+            runHook preInstall
 
-      mkdir -p $out/share/secrets-cli
-      cp -r . $out/share/secrets-cli/
+            mkdir -p $out/share/secrets-cli
+            cp -r . $out/share/secrets-cli/
 
-      mkdir -p $out/bin
-      cat > $out/bin/secrets << 'WRAPPER'
-#!/usr/bin/env fish
-set -gx SECRETS_LIB_DIR @out@/share/secrets-cli
-source $SECRETS_LIB_DIR/secrets $argv
-WRAPPER
+            mkdir -p $out/bin
+            cat > $out/bin/secrets << 'WRAPPER'
+      #!/usr/bin/env fish
+      set -gx SECRETS_LIB_DIR @out@/share/secrets-cli
+      source $SECRETS_LIB_DIR/secrets $argv
+      WRAPPER
 
-      substituteInPlace $out/bin/secrets --replace-fail '@out@' "$out"
-      chmod +x $out/bin/secrets
+            substituteInPlace $out/bin/secrets --replace-fail '@out@' "$out"
+            chmod +x $out/bin/secrets
 
-      wrapProgram $out/bin/secrets \
-        --prefix PATH : ${
-          lib.makeBinPath [
-            pkgs.fish
-            pkgs.bitwarden-cli
-            pkgs.libsecret
-            pkgs.jq
-            pkgs.coreutils
-            pkgs.gnupg
-            pkgs.openssh
-            pkgs.pinentry-qt
-            pkgs.findutils
-          ]
-        }
+            wrapProgram $out/bin/secrets \
+              --prefix PATH : ${
+                lib.makeBinPath [
+                  pkgs.fish
+                  pkgs.bitwarden-cli
+                  pkgs.libsecret
+                  pkgs.jq
+                  pkgs.coreutils
+                  pkgs.gnupg
+                  pkgs.openssh
+                  pkgs.pinentry-qt
+                  pkgs.findutils
+                ]
+              }
 
-      runHook postInstall
+            runHook postInstall
     '';
 
     meta = with lib; {

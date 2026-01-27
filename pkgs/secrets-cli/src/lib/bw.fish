@@ -16,7 +16,7 @@ function _bw_session_from_keyring
     set -l session (keyring_get_bw_session)
     test -z "$session" && return 1
     set -gx BW_SESSION "$session"
-    _bw_run unlock --check 2>/dev/null || begin
+    _bw_run unlock --check >/dev/null 2>&1 || begin
         keyring_delete_bw_session
         set -e BW_SESSION
         return 1
@@ -38,7 +38,7 @@ function bw_session
     # Ensure valid session. Returns 0 if ready.
     # Check existing session
     if set -q BW_SESSION; and test -n "$BW_SESSION"
-        _bw_run unlock --check 2>/dev/null && return 0
+        _bw_run unlock --check >/dev/null 2>&1 && return 0
         set -e BW_SESSION
     end
 
@@ -133,7 +133,7 @@ function bw_login
 end
 
 function bw_lock
-    _bw_run lock 2>/dev/null
+    _bw_run lock >/dev/null 2>&1
     keyring_delete_bw_session
     set -e BW_SESSION
     pinentry_clear
@@ -141,7 +141,7 @@ end
 
 function bw_sync
     bw_session || return 1
-    _bw_run sync 2>/dev/null
+    _bw_run sync >/dev/null 2>&1
 end
 
 # Item operations
@@ -224,7 +224,8 @@ end
 
 function bw_get_attachment -a item_id -a filename -a output
     bw_session || return 1
-    _bw_run get attachment "$filename" --itemid "$item_id" --output "$output" 2>/dev/null
+    # Use --raw to avoid flatpak sandbox path issues
+    _bw_run get attachment "$filename" --itemid "$item_id" --raw 2>/dev/null > "$output"
 end
 
 function bw_show_status
