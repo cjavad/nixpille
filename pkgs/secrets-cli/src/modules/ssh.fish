@@ -19,7 +19,12 @@ function ssh_pull
     set -l failed 0
 
     for line in $keys
-        set -l parts (string split \t $line)
+        set -l parts (string split \t -- "$line")
+        # Check we have both id and name
+        if test (count $parts) -lt 2
+            log_warn "Malformed entry: $line"
+            continue
+        end
         set -l id $parts[1]
         set -l name $parts[2]
 
@@ -27,35 +32,38 @@ function ssh_pull
 
         set -l privkey (bw_get_ssh $id)
         if test -z "$privkey"
-            item_fail $name "no private key"
+            item_fail "$name" "no private key"
             set failed (math $failed + 1)
             continue
         end
 
         # Write to tmpfs temporarily
-        set -l keyfile $runtime/$name
-        printf '%s\n' $privkey > $keyfile
-        chmod 600 $keyfile
+        set -l keyfile "$runtime/$name"
+        printf '%s\n' "$privkey" > "$keyfile"
+        chmod 600 "$keyfile"
 
         # Add to agent (suppress passphrase prompt for unencrypted keys)
-        SSH_ASKPASS_REQUIRE=never ssh-add $keyfile 2>/dev/null
-        if test $status -eq 0
-            item_ok $name
+        SSH_ASKPASS_REQUIRE=never ssh-add "$keyfile" 2>/dev/null
+        set -l add_ret $status
+        if test $add_ret -eq 0
+            item_ok "$name"
             set loaded (math $loaded + 1)
         else
-            item_fail $name "ssh-add failed"
+            item_fail "$name" "ssh-add failed"
             set failed (math $failed + 1)
         end
 
         # Remove from tmpfs immediately
-        runtime_shred_file $keyfile
+        runtime_shred_file "$keyfile"
     end
 
     # Clean up empty directory
-    rmdir $runtime 2>/dev/null
+    rmdir "$runtime" 2>/dev/null
 
     log_info "Loaded $loaded keys"
-    test $failed -gt 0 && log_warn "Failed: $failed"
+    if test $failed -gt 0
+        log_warn "Failed: $failed"
+    end
     return 0
 end
 
@@ -68,13 +76,13 @@ function ssh_add -a keyfile
     end
 
     # Expand path
-    set keyfile (eval echo $keyfile)
-    assert_file $keyfile "Key file not found: $keyfile" || return 1
+    set keyfile (eval echo "$keyfile")
+    assert_file "$keyfile" || return 1
 
     bw_session || return 1
 
-    set -l name (basename $keyfile)
-    set -l privkey (cat $keyfile)
+    set -l name (basename "$keyfile")
+    set -l privkey (cat "$keyfile")
     set -l pubkey ""
     set -l fingerprint ""
 
@@ -82,14 +90,14 @@ function ssh_add -a keyfile
     if test -f "$keyfile.pub"
         set pubkey (cat "$keyfile.pub")
     else
-        set pubkey (ssh-keygen -y -f $keyfile 2>/dev/null)
+        set pubkey (ssh-keygen -y -f "$keyfile" 2>/dev/null)
     end
 
     # Get fingerprint
-    set fingerprint (ssh-keygen -lf $keyfile 2>/dev/null | awk '{print $2}')
+    set fingerprint (ssh-keygen -lf "$keyfile" 2>/dev/null | awk '{print $2}')
 
     log_info "Adding: $name"
-    bw_create_ssh $name "$privkey" "$pubkey" "$fingerprint"
+    bw_create_ssh "$name" "$privkey" "$pubkey" "$fingerprint"
     log_success "Added: $name"
 end
 
@@ -103,13 +111,13 @@ function ssh_rm -a name
     bw_session || return 1
 
     # Find by name
-    set -l id (_bw_get_item_id $name 5)
+    set -l id (_bw_get_item_id "$name" 5)
     if test -z "$id"
         log_error "Not found: $name"
         return 1
     end
 
-    bw_delete_item $id
+    bw_delete_item "$id"
     log_success "Removed: $name"
 end
 
@@ -125,8 +133,10 @@ function ssh_list
     end
 
     for line in $keys
-        set -l parts (string split \t $line)
-        echo "  $parts[2]"
+        set -l parts (string split \t -- "$line")
+        if test (count $parts) -ge 2
+            echo "  $parts[2]"
+        end
     end
 end
 
@@ -134,7 +144,8 @@ function ssh_status
     # Show SSH agent status
     echo "SSH Agent:"
     set -l keys (ssh-add -l 2>/dev/null)
-    if test $status -ne 0
+    set -l ret $status
+    if test $ret -ne 0
         echo "  (not running or empty)"
         return 0
     end

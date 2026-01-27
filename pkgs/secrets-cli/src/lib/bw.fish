@@ -222,7 +222,8 @@ function bw_get_item -a name_or_id
     # First try as ID (UUID format)
     if string match -qr '^[0-9a-f-]{36}$' $name_or_id
         _bw_run get item $name_or_id 2>/dev/null
-        return $status
+        set -l ret $status
+        return $ret
     end
 
     # Otherwise lookup by name to get ID first

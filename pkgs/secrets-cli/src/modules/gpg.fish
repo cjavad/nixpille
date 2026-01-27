@@ -9,7 +9,7 @@ function gpg_pull
     # Pull GPG keys from BW to GPG keyring
     bw_session || return 1
 
-    set -l keys (bw_list_notes $SECRETS_GPG_PREFIX)
+    set -l keys (bw_list_notes "$SECRETS_GPG_PREFIX")
     if test -z "$keys"
         log_info "No GPG keys in Bitwarden"
         return 0
@@ -20,55 +20,61 @@ function gpg_pull
     set -l failed 0
 
     for line in $keys
-        set -l parts (string split \t $line)
+        set -l parts (string split \t -- "$line")
+        if test (count $parts) -lt 2
+            log_warn "Malformed entry: $line"
+            continue
+        end
         set -l id $parts[1]
         set -l name $parts[2]
 
         log_debug "Processing: $name ($id)"
 
         # Get item and extract notes with jq -j (preserves exact content)
-        set -l item (bw_get_item $id)
+        set -l item (bw_get_item "$id")
         if test -z "$item"
-            item_fail $name "failed to get item"
+            item_fail "$name" "failed to get item"
             set failed (math $failed + 1)
             continue
         end
 
         # FIX: Use jq -j to preserve exact armored key (no trailing newline corruption)
-        set -l armor (echo $item | jq -j '.notes // empty')
+        set -l armor (echo "$item" | jq -j '.notes // empty')
         if test -z "$armor"
-            item_fail $name "no notes content"
+            item_fail "$name" "no notes content"
             set failed (math $failed + 1)
             continue
         end
 
         # FIX: Write to file first, then import from file
-        # This is more reliable than piping through stdin
-        set -l keyfile $runtime/(string replace -a '/' '_' $name).asc
-        printf '%s' "$armor" > $keyfile
+        set -l keyfile "$runtime/"(string replace -a '/' '_' "$name")".asc"
+        printf '%s' "$armor" > "$keyfile"
 
         # Import from file
-        gpg --batch --import $keyfile 2>/dev/null
-        if test $status -eq 0
-            item_ok $name
+        gpg --batch --import "$keyfile" 2>/dev/null
+        set -l gpg_ret $status
+        if test $gpg_ret -eq 0
+            item_ok "$name"
             set imported (math $imported + 1)
         else
-            item_fail $name "gpg import failed"
+            item_fail "$name" "gpg import failed"
             set failed (math $failed + 1)
         end
 
         # Clean up
-        runtime_shred_file $keyfile
+        runtime_shred_file "$keyfile"
     end
 
-    rmdir $runtime 2>/dev/null
+    rmdir "$runtime" 2>/dev/null
 
     log_info "Imported $imported keys"
-    test $failed -gt 0 && log_warn "Failed: $failed"
+    if test $failed -gt 0
+        log_warn "Failed: $failed"
+    end
     return 0
 end
 
-function gpg_add -a keyid name
+function gpg_add -a keyid -a name
     # Export local GPG key to Bitwarden
     if test -z "$keyid"
         echo "Usage: secrets gpg add <keyid> [name]"
@@ -80,7 +86,7 @@ function gpg_add -a keyid name
     bw_session || return 1
 
     # Export armored secret key
-    set -l armor (gpg --export-secret-keys --armor $keyid 2>/dev/null)
+    set -l armor (gpg --export-secret-keys --armor "$keyid" 2>/dev/null)
     if test -z "$armor"
         log_error "Could not export key: $keyid"
         log_error "Make sure the key exists: gpg --list-secret-keys"
@@ -89,22 +95,22 @@ function gpg_add -a keyid name
 
     # Generate name from email if not provided
     if test -z "$name"
-        set -l email (gpg --list-keys $keyid 2>/dev/null | grep uid | head -1 | string match -r '<(.+)>' | tail -1)
+        set -l email (gpg --list-keys "$keyid" 2>/dev/null | grep uid | head -1 | string match -r '<(.+)>' | tail -1)
         if test -n "$email"
             # Sanitize email for item name
-            set name $SECRETS_GPG_PREFIX(string replace -a '@' '-' (string replace -a '.' '-' $email))
+            set name "$SECRETS_GPG_PREFIX"(string replace -a '@' '-' (string replace -a '.' '-' "$email"))
         else
-            set name $SECRETS_GPG_PREFIX$keyid
+            set name "$SECRETS_GPG_PREFIX$keyid"
         end
     end
 
     # Ensure prefix
-    if not string match -q "$SECRETS_GPG_PREFIX*" $name
-        set name $SECRETS_GPG_PREFIX$name
+    if not string match -q "$SECRETS_GPG_PREFIX*" "$name"
+        set name "$SECRETS_GPG_PREFIX$name"
     end
 
     log_info "Adding: $name"
-    bw_create_note $name "$armor"
+    bw_create_note "$name" "$armor"
     log_success "Added: $name"
 end
 
@@ -118,13 +124,13 @@ function gpg_rm -a name
     bw_session || return 1
 
     # Find by name
-    set -l id (_bw_get_item_id $name 2)
+    set -l id (_bw_get_item_id "$name" 2)
     if test -z "$id"
         log_error "Not found: $name"
         return 1
     end
 
-    bw_delete_item $id
+    bw_delete_item "$id"
     log_success "Removed: $name"
 end
 
@@ -133,15 +139,17 @@ function gpg_list
     bw_session || return 1
 
     echo "GPG keys in Bitwarden:"
-    set -l keys (bw_list_notes $SECRETS_GPG_PREFIX)
+    set -l keys (bw_list_notes "$SECRETS_GPG_PREFIX")
     if test -z "$keys"
         echo "  (none)"
         return 0
     end
 
     for line in $keys
-        set -l parts (string split \t $line)
-        echo "  $parts[2]"
+        set -l parts (string split \t -- "$line")
+        if test (count $parts) -ge 2
+            echo "  $parts[2]"
+        end
     end
 end
 
@@ -154,7 +162,7 @@ function gpg_status
         return 0
     end
 
-    echo $keys | grep -E "^sec|^uid" | while read line
+    echo "$keys" | grep -E "^sec|^uid" | while read -l line
         echo "  $line"
     end
 end
