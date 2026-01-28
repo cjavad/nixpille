@@ -12,6 +12,22 @@
         # Compose
         "mail.identity.default.compose_html" = true;
         "mail.SpellCheckBeforeSend" = false;
+
+        # Dark mode / theme
+        "ui.systemUsesDarkTheme" = 1;
+        "browser.display.use_system_colors" = false;
+        "layout.css.prefers-color-scheme.content-override" = 0; # 0 = dark
+        "browser.in-content.dark-mode" = true;
+        "extensions.activeThemeID" = "thunderbird-compact-dark@mozilla.org";
+
+        # Clean UI
+        "mail.pane_config.dynamic" = 2; # Vertical view (modern layout)
+        "mailnews.default_view_flags" = 1; # Threaded view
+        "mail.showCondensedAddresses" = true;
+        "mailnews.table_layout.version" = 1;
+        "mail.uifontsize" = 14;
+        "browser.display.background_color" = "#1e1e2e";
+        "browser.display.foreground_color" = "#cdd6f4";
       };
     };
   };

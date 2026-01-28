@@ -1,6 +1,8 @@
 { ... }:
 
 {
+  hardware.enableRedistributableFirmware = true;
+
   hardware.graphics = {
     enable = true;
     enable32Bit = true;
@@ -10,6 +12,10 @@
   services.tlp = {
     enable = true;
     settings = {
+      # Platform profile (firmware-level power limits)
+      PLATFORM_PROFILE_ON_AC = "performance";
+      PLATFORM_PROFILE_ON_BAT = "low-power";
+
       # CPU governor on AC - performance mode
       CPU_SCALING_GOVERNOR_ON_AC = "performance";
       CPU_SCALING_GOVERNOR_ON_BAT = "powersave";
@@ -28,6 +34,9 @@
     };
   };
   services.fwupd.enable = true;
+
+  # Thunderbolt device authorization (for docks)
+  services.hardware.bolt.enable = true;
   services.libinput = {
     enable = true;
     touchpad.disableWhileTyping = false;

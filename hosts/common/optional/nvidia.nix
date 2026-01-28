@@ -4,9 +4,15 @@
   hardware.nvidia = {
     modesetting.enable = true;
     powerManagement.enable = true;
-    open = false;
+    open = true;
     nvidiaSettings = true;
   };
+
+  nixpkgs.overlays = [
+    (self: super: {
+      btop = super.btop.override { cudaSupport = true; };
+    })
+  ];
 
   services.xserver.videoDrivers = [ "nvidia" ];
 

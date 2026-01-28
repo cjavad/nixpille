@@ -1,4 +1,4 @@
-{ ... }:
+{ pkgs, ... }:
 
 {
   services.pipewire = {
@@ -7,6 +7,8 @@
     alsa.support32Bit = true;
     pulse.enable = true;
   };
+
+  environment.systemPackages = [ pkgs.pulseaudio ]; # for pactl
 
   security.rtkit.enable = true;
 }

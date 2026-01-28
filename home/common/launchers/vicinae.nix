@@ -24,8 +24,7 @@
 
     # Native vicinae extensions (from vicinae-extensions flake)
     extensions = with inputs.vicinae-extensions.packages.${pkgs.stdenv.hostPlatform.system}; [
-      # Raycast extensions like Bitwarden: install from within vicinae
-      # Open vicinae -> type "store" -> search "bitwarden" -> install
+      pulseaudio
     ];
   };
 

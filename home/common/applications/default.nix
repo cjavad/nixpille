@@ -4,5 +4,6 @@
     ./flatpak.nix
     ./backup.nix
     ./nixos-config.nix
+    ./jetbrains.nix
   ];
 }

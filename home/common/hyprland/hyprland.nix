@@ -35,8 +35,7 @@ in
     systemd.enable = false; # Using UWSM
 
     settings = {
-      # Monitor - host-specific overrides in home/javad/<host>/
-      monitor = [ ",preferred,auto,1" ];
+      # Monitors managed by kanshi
 
       # Environment
       env = [
@@ -44,7 +43,6 @@ in
         "QT_WAYLAND_DISABLE_WINDOWDECORATION,1"
         "QT_AUTO_SCREEN_SCALE_FACTOR,1"
         "HYPRLAND_NO_SD_NOTIFY,1"
-        "HYPRLAND_NO_RT,1"
         "GDK_SCALE,1"
         "XCURSOR_SIZE,24"
         "HYPRCURSOR_SIZE,24"
@@ -195,6 +193,9 @@ in
         # Recording submap
         "$mainMod SHIFT, R, submap, recording"
 
+        # Reload Hyprland
+        "$mainMod SHIFT, C, exec, hyprctl reload"
+
         # Stop recording
         "$mainMod, Escape, exec, pkill -SIGINT wf-recorder"
 
@@ -283,25 +284,28 @@ in
         center = on
       }
 
+      # Gaming - native Linux games (cs2), Proton games (steam_app_*), gamescope
+      windowrule {
+        name = gaming
+        match:class = ^(cs2|steam_app_.*|gamescope)$
+        opaque = on
+        immediate = on
+        fullscreen = on
+      }
+
       # Screenshot submap
       submap = screenshot
-      bind = , P, exec, grim -g "$(slurp)" - | swappy -f -
-      bind = , P, submap, reset
-      bind = , O, exec, grim - | swappy -f -
-      bind = , O, submap, reset
-      bind = SHIFT, P, exec, grim -g "$(slurp)" - | wl-copy
-      bind = SHIFT, P, submap, reset
-      bind = SHIFT, O, exec, grim - | wl-copy
-      bind = SHIFT, O, submap, reset
+      bind = , P, exec, grim -g "$(slurp)" - | swappy -f - ; hyprctl dispatch submap reset
+      bind = , O, exec, grim - | swappy -f - ; hyprctl dispatch submap reset
+      bind = SHIFT, P, exec, grim -g "$(slurp)" - | wl-copy ; hyprctl dispatch submap reset
+      bind = SHIFT, O, exec, grim - | wl-copy ; hyprctl dispatch submap reset
       bind = , escape, submap, reset
       submap = reset
 
       # Recording submap
       submap = recording
-      bind = , R, exec, ${recorderScript}
-      bind = , R, submap, reset
-      bind = SHIFT, R, exec, ${recorderScript} -a
-      bind = SHIFT, R, submap, reset
+      bind = , R, exec, ${recorderScript} ; hyprctl dispatch submap reset
+      bind = SHIFT, R, exec, ${recorderScript} -a ; hyprctl dispatch submap reset
       bind = , escape, submap, reset
       submap = reset
     '';

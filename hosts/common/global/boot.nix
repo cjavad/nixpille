@@ -7,7 +7,7 @@
     loader.systemd-boot.configurationLimit = lib.mkDefault 10;
     loader.efi.canTouchEfiVariables = lib.mkDefault true;
     loader.grub.configurationLimit = lib.mkDefault 10;
-    kernelPackages = pkgs.linuxPackages_zen;
+    kernelPackages = pkgs.cachyosKernels.linuxPackages-cachyos-latest;
     kernelParams = [
       "quiet"
       "splash"

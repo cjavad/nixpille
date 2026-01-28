@@ -7,10 +7,12 @@
     extra-substituters = [
       "https://nix-community.cachix.org"
       "https://vicinae.cachix.org"
+      "https://attic.xuyh0120.win/lantian"
     ];
     extra-trusted-public-keys = [
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
       "vicinae.cachix.org-1:1kDrfienkGHPYbkpNj1mWTr7Fm1+zcenzgTizIcI3oc="
+      "lantian:EeAUQ+W+6r7EtwnmYjeVwx5kOGEBpjlBfPlzGlTNvHc="
     ];
   };
 
@@ -60,6 +62,8 @@
       url = "github:psi4j/sunsetr";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    nix-cachyos-kernel.url = "github:xddxdd/nix-cachyos-kernel/release";
   };
 
   outputs =
@@ -104,8 +108,7 @@
         flakeRoot = ./.;
       };
 
-      # Home-manager shared modules
-      # Note: stylix is auto-configured via NixOS module, don't add here
+      # Home-manager shared modules (used by both NixOS and standalone paths)
       homeModules = [
         inputs.zen-browser.homeModules.beta
       ];
@@ -127,7 +130,7 @@
         nixpkgs.lib.nixosSystem {
           inherit system specialArgs;
           modules = [
-            { nixpkgs.overlays = [ customOverlay ]; }
+            { nixpkgs.overlays = [ customOverlay inputs.nix-cachyos-kernel.overlays.pinned ]; }
             ./hosts/${name}
             inputs.stylix.nixosModules.stylix
             homeManagerModule
@@ -175,6 +178,7 @@
                 modules = homeModules ++ [
                   ./home/${user}/${host}
                   inputs.stylix.homeModules.stylix
+                  ./modules/desktop/stylix.nix
                   inputs.sops-nix.homeManagerModules.sops
                 ];
               };
