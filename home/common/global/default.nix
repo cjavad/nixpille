@@ -15,8 +15,6 @@
   home.username = "javad";
   home.homeDirectory = "/home/javad";
 
-  programs.home-manager.enable = true;
-
   programs.git = {
     enable = true;
     settings = {
@@ -61,7 +59,21 @@
     '';
   };
 
+  # Nautilus preferences
+  dconf.settings = {
+    "org/gnome/nautilus/icon-view" = {
+      default-zoom-level = "small";
+    };
+    "org/gnome/nautilus/list-view" = {
+      default-zoom-level = "small";
+    };
+    "org/gnome/desktop/interface" = {
+      icon-theme = "Papirus-Dark";
+    };
+  };
+
   home.packages = with pkgs; [
+    home-manager
     gnupg
     nautilus
   ];

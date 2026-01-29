@@ -2,24 +2,38 @@
 { pkgs, config, ... }:
 
 let
-  # Script to check if fingerprint is enabled (marker file absent)
+  # Script to check if fingerprint is enabled based on lid state
   checkFingerprintEnabled = pkgs.writeScript "check-fingerprint-enabled" ''
     #!${pkgs.bash}/bin/bash
-    # Return 0 (success) if fingerprint enabled, 1 if disabled
-    [ ! -f /run/fingerprint-disabled ]
+    # Return 0 (success) if fingerprint enabled (lid open or no lid), 1 if disabled (lid closed)
+    lid_state=$(cat /proc/acpi/button/lid/*/state 2>/dev/null | head -1)
+    case "$lid_state" in
+      *closed*) exit 1 ;;
+    esac
+    exit 0
   '';
 in
 {
-  # Allow users to manage fprintd and marker file without password (for lid scripts)
-  security.sudo.extraRules = [{
-    groups = [ "users" ];
-    commands = [
-      { command = "${config.systemd.package}/bin/systemctl stop fprintd.service"; options = [ "NOPASSWD" ]; }
-      { command = "${config.systemd.package}/bin/systemctl start fprintd.service"; options = [ "NOPASSWD" ]; }
-      { command = "${pkgs.coreutils}/bin/touch /run/fingerprint-disabled"; options = [ "NOPASSWD" ]; }
-      { command = "${pkgs.coreutils}/bin/rm -f /run/fingerprint-disabled"; options = [ "NOPASSWD" ]; }
-    ];
-  }];
+  # Allow users to manage fprintd without password (for lid scripts)
+  security.sudo.extraRules = [
+    {
+      groups = [ "users" ];
+      commands = [
+        {
+          command = "${config.systemd.package}/bin/systemctl stop fprintd.service";
+          options = [ "NOPASSWD" ];
+        }
+        {
+          command = "${config.systemd.package}/bin/systemctl start fprintd.service";
+          options = [ "NOPASSWD" ];
+        }
+        {
+          command = "${config.systemd.package}/bin/systemctl restart fprintd.service";
+          options = [ "NOPASSWD" ];
+        }
+      ];
+    }
+  ];
 
   # Enable fprintd daemon with Touch OEM Driver support
   services.fprintd = {
@@ -42,7 +56,10 @@ in
         order = config.security.pam.services.hyprlock.rules.auth.fprintd.order - 10;
         control = "[success=ignore default=1]";
         modulePath = "${pkgs.pam}/lib/security/pam_exec.so";
-        args = [ "quiet" "${checkFingerprintEnabled}" ];
+        args = [
+          "quiet"
+          "${checkFingerprintEnabled}"
+        ];
       };
     };
 
@@ -53,7 +70,10 @@ in
         order = config.security.pam.services.sudo.rules.auth.fprintd.order - 10;
         control = "[success=ignore default=1]";
         modulePath = "${pkgs.pam}/lib/security/pam_exec.so";
-        args = [ "quiet" "${checkFingerprintEnabled}" ];
+        args = [
+          "quiet"
+          "${checkFingerprintEnabled}"
+        ];
       };
     };
 
@@ -64,7 +84,10 @@ in
         order = config.security.pam.services.polkit-1.rules.auth.fprintd.order - 10;
         control = "[success=ignore default=1]";
         modulePath = "${pkgs.pam}/lib/security/pam_exec.so";
-        args = [ "quiet" "${checkFingerprintEnabled}" ];
+        args = [
+          "quiet"
+          "${checkFingerprintEnabled}"
+        ];
       };
     };
   };

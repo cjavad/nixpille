@@ -8,12 +8,6 @@
     nvidiaSettings = true;
   };
 
-  nixpkgs.overlays = [
-    (self: super: {
-      btop = super.btop.override { cudaSupport = true; };
-    })
-  ];
-
   services.xserver.videoDrivers = [ "nvidia" ];
 
   # Prime offload configured per-host in hardware.nix or host default.nix

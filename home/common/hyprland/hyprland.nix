@@ -8,6 +8,26 @@
 }:
 
 let
+  # Shared monitor definitions
+  monitors = import ../wayland/monitors.nix;
+
+  # Generate workspace rules from monitor config
+  # Strips serial (last word) from "Make Model Serial" criteria for Hyprland desc: matching
+  mkWorkspaceRule =
+    output:
+    let
+      # For eDP-1 style criteria, use as-is; for "Make Model Serial", strip serial
+      isSimple = !(lib.hasInfix " " output.criteria);
+      parts = lib.splitString " " output.criteria;
+      monitorMatch =
+        if isSimple then output.criteria else "desc:" + (lib.concatStringsSep " " (lib.init parts));
+    in
+    "${toString output.workspace}, monitor:${monitorMatch}, default:true";
+
+  workspaceRules = lib.flatten (
+    lib.mapAttrsToList (_: profile: map mkWorkspaceRule profile.outputs) monitors.profiles
+  );
+
   recorderScript = pkgs.writeScript "recorder" ''
     #!${pkgs.fish}/bin/fish
     if pgrep -x wf-recorder >/dev/null
@@ -27,6 +47,19 @@ let
     end
   '';
 
+  # Open terminal in CWD of active window (using kitty remote control)
+  terminalCwdScript = pkgs.writeScript "terminal-cwd" ''
+    #!${pkgs.fish}/bin/fish
+    set class (hyprctl activewindow -j | jq -r '.class // empty')
+
+    # If active window is kitty and socket exists, use remote control to inherit CWD
+    if test "$class" = kitty -a -S /tmp/kitty.sock
+      exec kitty @ --to unix:/tmp/kitty.sock launch --type=os-window --cwd=current
+    else
+      exec kitty
+    end
+  '';
+
 in
 {
   wayland.windowManager.hyprland = {
@@ -35,7 +68,9 @@ in
     systemd.enable = false; # Using UWSM
 
     settings = {
-      # Monitors managed by kanshi
+      # Workspace rules generated from ../wayland/monitors.nix
+      # Rules for missing monitors are silently ignored
+      workspace = workspaceRules;
 
       # Environment
       env = [
@@ -135,8 +170,7 @@ in
       # Keybindings
       bind = [
         # Terminal
-        "$mainMod, Return, exec, kitty"
-        "$secondaryMod, Return, exec, kitty"
+        "$mainMod, Return, exec, ${terminalCwdScript}"
 
         # Vicinae
         "$mainMod, space, exec, vicinae toggle"
@@ -209,8 +243,8 @@ in
         # Waybar toggle
         "$mainMod SHIFT, B, exec, pkill -SIGUSR1 waybar"
 
-        # Lock
-        "$secondaryMod, L, exec, hyprlock"
+        # Lock (via loginctl to trigger hypridle's on_lock_cmd for keyring lock)
+        "$secondaryMod, L, exec, loginctl lock-session"
 
         # Idle inhibit
         "$mainMod SHIFT, I, exec, pkill -SIGUSR1 hypridle || hypridle"
@@ -284,6 +318,15 @@ in
         center = on
       }
 
+      # JetBrains IDE - floating popups (file search, dialogs, etc.)
+      windowrule {
+        name = jetbrains-popup
+        match:class = ^(jetbrains-.*)$
+        match:title = ^$
+        match:float = true
+        stay_focused = on
+      }
+
       # Gaming - native Linux games (cs2), Proton games (steam_app_*), gamescope
       windowrule {
         name = gaming
@@ -314,9 +357,7 @@ in
   # Hyprlock config
   xdg.configFile."hypr/hyprlock.conf".text = ''
     general {
-        disable_loading_bar = false
         hide_cursor = true
-        grace = 0
     }
 
     background {
@@ -409,6 +450,8 @@ in
         PartOf = [ "graphical-session.target" ];
       };
       Service = {
+        # Brief delay to ensure D-Bus session is fully ready
+        ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
         ExecStart = "${pkgs.hypridle}/bin/hypridle";
         Restart = "on-failure";
         RestartSec = 5;

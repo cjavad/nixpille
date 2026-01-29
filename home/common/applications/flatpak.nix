@@ -9,7 +9,10 @@
 let
   # Electron app override: native Wayland + client-side decorations (no title bar)
   electronApp = {
-    Context.sockets = [ "wayland" "fallback-x11" ];
+    Context.sockets = [
+      "wayland"
+      "fallback-x11"
+    ];
     Environment = {
       ELECTRON_OZONE_PLATFORM_HINT = "auto";
       GTK_CSD = "1";

@@ -23,7 +23,9 @@
     extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
   };
 
-  security.pam.services.hyprlock = { };
+  security.pam.services.hyprlock = {
+    enableGnomeKeyring = true;
+  };
 
   systemd.user.services.hyprpolkitagent = {
     description = "Hyprland Polkit Authentication Agent";

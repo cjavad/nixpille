@@ -1,8 +1,6 @@
 {
   description = "NixOS configuration";
 
-  # NOTE: Must be literal values (flake parser limitation)
-  # Source of truth: modules/cache/default.nix
   nixConfig = {
     extra-substituters = [
       "https://nix-community.cachix.org"
@@ -20,50 +18,36 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
-
-    home-manager = {
-      url = "github:nix-community/home-manager/release-25.11";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    sops-nix = {
-      url = "github:Mic92/sops-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    disko = {
-      url = "github:nix-community/disko";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    vicinae.url = "github:vicinaehq/vicinae";
-    vicinae-extensions = {
-      url = "github:vicinaehq/extensions";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    zen-browser = {
-      url = "github:0xc000022070/zen-browser-flake";
-      inputs.home-manager.follows = "home-manager";
-    };
+    nix-cachyos-kernel.url = "github:xddxdd/nix-cachyos-kernel/release";
     firefox-addons.url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
     nix-flatpak.url = "github:gmodena/nix-flatpak";
+    vicinae.url = "github:vicinaehq/vicinae";
 
-    stylix = {
-      url = "github:danth/stylix/release-25.11";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    home-manager.url = "github:nix-community/home-manager/release-25.11";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
-    lanzaboote = {
-      url = "github:nix-community/lanzaboote";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    sops-nix.url = "github:Mic92/sops-nix";
+    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-    sunsetr = {
-      url = "github:psi4j/sunsetr";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    disko.url = "github:nix-community/disko";
+    disko.inputs.nixpkgs.follows = "nixpkgs";
 
-    nix-cachyos-kernel.url = "github:xddxdd/nix-cachyos-kernel/release";
+    vicinae-extensions.url = "github:vicinaehq/extensions";
+    vicinae-extensions.inputs.nixpkgs.follows = "nixpkgs";
+
+    stylix.url = "github:danth/stylix/release-25.11";
+    stylix.inputs.nixpkgs.follows = "nixpkgs";
+
+    lanzaboote.url = "github:nix-community/lanzaboote";
+    lanzaboote.inputs.nixpkgs.follows = "nixpkgs";
+
+    sunsetr.url = "github:psi4j/sunsetr";
+    sunsetr.inputs.nixpkgs.follows = "nixpkgs";
+
+    zen-browser.url = "github:0xc000022070/zen-browser-flake";
+    zen-browser.inputs.home-manager.follows = "home-manager";
+
+    nix-jetbrains-plugins.url = "github:nix-community/nix-jetbrains-plugins";
   };
 
   outputs =
@@ -74,29 +58,42 @@
       ...
     }:
     let
-      lib = nixpkgs.lib;
+      inherit (nixpkgs) lib;
+      system = "x86_64-linux";
 
-      # Custom packages overlay
-      customOverlay = final: prev: {
-        custom = import ./pkgs { pkgs = final; };
-      };
-
-      # Discover directories with default.nix (excluding "common")
+      # Directory helpers
+      readDirs = dir: lib.filterAttrs (_: t: t == "directory") (builtins.readDir dir);
       discover =
         dir:
-        lib.filterAttrs (
-          name: type:
-          type == "directory" && name != "common" && builtins.pathExists (dir + "/${name}/default.nix")
-        ) (builtins.readDir dir);
+        lib.attrNames (
+          lib.filterAttrs (n: _: n != "common" && builtins.pathExists (dir + "/${n}/default.nix")) (
+            readDirs dir
+          )
+        );
 
-      # Discover directories (excluding "common")
-      discoverDirs =
-        dir: lib.filterAttrs (name: type: type == "directory" && name != "common") (builtins.readDir dir);
+      hosts = discover ./hosts;
+      users = lib.attrNames (lib.filterAttrs (n: _: n != "common") (readDirs ./home));
 
-      hosts = builtins.attrNames (discover ./hosts);
-      users = builtins.attrNames (discoverDirs ./home);
+      hasNvidia =
+        host:
+        builtins.pathExists ./hosts/${host}/nvidia.nix
+        || lib.hasInfix "nvidia.nix" (builtins.readFile ./hosts/${host}/default.nix);
 
-      system = "x86_64-linux";
+      overlaysFor =
+        host:
+        [
+          (final: _: { custom = import ./pkgs { pkgs = final; }; })
+          inputs.nix-cachyos-kernel.overlays.pinned
+        ]
+        ++ lib.optional (hasNvidia host) (import ./overlays/nvidia.nix);
+
+      pkgsFor =
+        host:
+        import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+          overlays = overlaysFor host;
+        };
 
       pkgs-unstable = import inputs.nixpkgs-unstable {
         inherit system;
@@ -108,34 +105,48 @@
         flakeRoot = ./.;
       };
 
-      # Home-manager shared modules (used by both NixOS and standalone paths)
-      homeModules = [
+      hmModules = [
         inputs.zen-browser.homeModules.beta
+        inputs.sops-nix.homeManagerModules.sops
+        ./modules/desktop/stylix.nix
       ];
 
-      # Home-manager NixOS module with shared config
-      homeManagerModule = {
-        imports = [ home-manager.nixosModules.home-manager ];
-        home-manager = {
-          useGlobalPkgs = true;
-          useUserPackages = true;
-          backupFileExtension = "hm-bak";
-          sharedModules = homeModules;
-          extraSpecialArgs = specialArgs;
-        };
-      };
-
       mkHost =
-        name:
-        nixpkgs.lib.nixosSystem {
+        host:
+        lib.nixosSystem {
           inherit system specialArgs;
           modules = [
-            { nixpkgs.overlays = [ customOverlay inputs.nix-cachyos-kernel.overlays.pinned ]; }
-            ./hosts/${name}
+            { nixpkgs.overlays = overlaysFor host; }
+            ./hosts/${host}
             inputs.stylix.nixosModules.stylix
-            homeManagerModule
+            {
+              imports = [ home-manager.nixosModules.home-manager ];
+              home-manager = {
+                useGlobalPkgs = true;
+                useUserPackages = true;
+                backupFileExtension = "hm-bak";
+                extraSpecialArgs = specialArgs;
+                sharedModules = hmModules;
+              };
+            }
           ];
         };
+
+      mkHome =
+        user: host:
+        home-manager.lib.homeManagerConfiguration {
+          pkgs = pkgsFor host;
+          extraSpecialArgs = specialArgs;
+          modules = hmModules ++ [
+            inputs.stylix.homeModules.stylix
+            ./home/${user}/${host}
+          ];
+        };
+
+      homeEntries = lib.concatMap (
+        user: map (host: lib.nameValuePair "${user}@${host}" (mkHome user host)) (discover ./home/${user})
+      ) users;
+
     in
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [
@@ -144,65 +155,20 @@
       ];
 
       flake = {
-        # Shareable home-manager modules
-        homeModules = {
-          secrets = ./modules/home-manager/secrets;
+        homeModules.secrets = ./modules/home-manager/secrets;
+
+        nixosConfigurations = lib.genAttrs hosts mkHost // {
+          iso = lib.nixosSystem {
+            inherit system specialArgs;
+            modules = [ ./modules/profiles/iso ];
+          };
         };
 
-        nixosConfigurations =
-          let
-            hostConfigs = lib.genAttrs hosts mkHost;
-          in
-          hostConfigs
-          // {
-            # Minimal network installer ISO
-            iso = nixpkgs.lib.nixosSystem {
-              inherit system specialArgs;
-              modules = [ ./modules/profiles/iso ];
-            };
-          };
-
-        # Export as user@host (e.g., javad@vm) for `home-manager switch --flake /etc/nixos`
-        homeConfigurations =
-          let
-            pkgs = import nixpkgs {
-              inherit system;
-              config.allowUnfree = true;
-              overlays = [ customOverlay ];
-            };
-            mkHome =
-              user: host:
-              home-manager.lib.homeManagerConfiguration {
-                inherit pkgs;
-                extraSpecialArgs = specialArgs;
-                modules = homeModules ++ [
-                  ./home/${user}/${host}
-                  inputs.stylix.homeModules.stylix
-                  ./modules/desktop/stylix.nix
-                  inputs.sops-nix.homeManagerModules.sops
-                ];
-              };
-            # For each user, discover their host configs
-            userHosts = lib.listToAttrs (
-              lib.flatten (
-                map (
-                  user:
-                  let
-                    userHostDirs = builtins.attrNames (discover ./home/${user});
-                  in
-                  map (host: {
-                    name = "${user}@${host}";
-                    value = mkHome user host;
-                  }) userHostDirs
-                ) users
-              )
-            );
-          in
-          userHosts;
+        homeConfigurations = lib.listToAttrs homeEntries;
       };
 
       perSystem =
-        { pkgs, self', ... }:
+        { pkgs, ... }:
         {
           formatter = pkgs.nixfmt-tree;
           checks = import ./ops/tests {

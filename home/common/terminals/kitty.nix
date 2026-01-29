@@ -6,6 +6,11 @@
 
     # Stylix handles colors and opacity automatically
     settings = {
+      # Remote control (for launching new windows with CWD)
+      allow_remote_control = "socket-only";
+      listen_on = "unix:/tmp/kitty.sock";
+      single_instance = true;
+
       # Window
       window_padding_width = 8;
       confirm_os_window_close = 0;

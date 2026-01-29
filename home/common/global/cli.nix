@@ -5,7 +5,11 @@
     git
     neovim
     curl
+    zip
     unzip
+    p7zip
+    xz
+    zstd
     fd
     ripgrep
     tree
@@ -25,6 +29,7 @@
     fortune
     cowsay
     lolcat
+    mycli
   ];
 
   programs.tmux = {

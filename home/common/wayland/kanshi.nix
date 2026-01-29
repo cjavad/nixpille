@@ -1,7 +1,41 @@
 # Kanshi - dynamic monitor configuration
-# Scripts in ops/monitors/, use `task monitors:*` commands
-{ pkgs, config, ... }:
+# Monitor definitions in ./monitors.nix
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 
+let
+  monitors = import ./monitors.nix;
+
+  # Convert our monitor format to kanshi output format
+  toKanshiOutput =
+    output:
+    {
+      criteria = output.criteria;
+      mode = output.mode;
+      scale = output.scale;
+    }
+    // lib.optionalAttrs (output ? position) {
+      position = output.position;
+    };
+
+  # Generate kanshi profile from our format
+  toKanshiProfile = name: profile: {
+    profile.name = name;
+    profile.outputs =
+      # Add disabled internal display if specified
+      (lib.optional (profile.disableInternal or false) {
+        criteria = "eDP-1";
+        status = "disable";
+      })
+      ++
+        # Add all outputs
+        (map toKanshiOutput profile.outputs);
+  };
+in
 {
   home.packages = [
     pkgs.kanshi
@@ -12,46 +46,7 @@
   services.kanshi = {
     enable = true;
     systemdTarget = "graphical-session.target";
-
-    settings = [
-      {
-        profile.name = "work-docked";
-        profile.outputs = [
-          {
-            criteria = "eDP-1";
-            status = "disable";
-          }
-          {
-            criteria = "Dell Inc. DELL P2314H J8J3146IBZ8B";
-            mode = "1920x1080@60Hz";
-            position = "0,0";
-            scale = 1.25;
-          }
-          {
-            criteria = "Dell Inc. DELL P2414H 36WJX37G044L";
-            mode = "1920x1080@60Hz";
-            position = "1536,0";
-            scale = 1.25;
-          }
-          {
-            criteria = "AOC 2460G4 GJXH9HA034303";
-            mode = "1920x1080@60Hz";
-            position = "3072,0";
-            scale = 1.25;
-          }
-        ];
-      }
-      {
-        profile.name = "laptop";
-        profile.outputs = [
-          {
-            criteria = "eDP-1";
-            mode = "3200x2000@120Hz";
-            scale = 1.6;
-          }
-        ];
-      }
-    ];
+    settings = lib.mapAttrsToList toKanshiProfile monitors.profiles;
   };
 
   # Auto-restart kanshi when config changes, and restart waybar after

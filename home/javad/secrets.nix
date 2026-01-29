@@ -13,7 +13,6 @@ in
 {
   imports = [
     ../../modules/home-manager/secrets
-    inputs.sops-nix.homeManagerModules.sops
   ];
 
   # Enable secrets management

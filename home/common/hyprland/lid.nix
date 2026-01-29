@@ -3,24 +3,26 @@
 { pkgs, ... }:
 
 let
-  # Unified fingerprint management script
-  # Handles both fprintd service and PAM marker file
+  # Fingerprint management script - controls fprintd service based on lid state
+  # Gracefully handles hosts without fingerprint support (ideapad)
   fingerprintCtl = pkgs.writeScriptBin "fingerprint-ctl" ''
     #!${pkgs.fish}/bin/fish
-    set MARKER_FILE "/run/fingerprint-disabled"
 
     function get_lid_state
       cat /proc/acpi/button/lid/*/state 2>/dev/null | string match -r 'open|closed'; or echo "unknown"
     end
 
+    function has_fprintd
+      systemctl list-unit-files fprintd.service >/dev/null 2>&1
+    end
+
     function disable_fingerprint
-      sudo touch $MARKER_FILE
-      sudo systemctl stop fprintd.service 2>/dev/null; or true
+      has_fprintd; and sudo systemctl stop fprintd.service 2>/dev/null; or true
     end
 
     function enable_fingerprint
-      sudo rm -f $MARKER_FILE
-      sudo systemctl start fprintd.service 2>/dev/null; or true
+      # Use restart to properly reset device claims
+      has_fprintd; and sudo systemctl restart fprintd.service 2>/dev/null; or true
     end
 
     set cmd (test (count $argv) -gt 0; and echo $argv[1]; or echo "auto")
@@ -31,7 +33,6 @@ let
       case enable
         enable_fingerprint
       case auto sync
-        # Sync fingerprint state with lid state
         if test (get_lid_state) = "closed"
           disable_fingerprint
         else
@@ -39,10 +40,11 @@ let
         end
       case status
         echo "Lid: "(get_lid_state)
-        if test -f $MARKER_FILE
-          echo "Fingerprint: disabled"
+        if has_fprintd
+          set fprintd_status (systemctl is-active fprintd.service 2>/dev/null; or echo "unknown")
+          echo "fprintd: $fprintd_status"
         else
-          echo "Fingerprint: enabled"
+          echo "fprintd: not available"
         end
       case '*'
         echo "Usage: fingerprint-ctl {enable|disable|auto|status}"
@@ -52,7 +54,7 @@ let
 
   lidCloseScript = pkgs.writeScript "lid-close" ''
     #!${pkgs.fish}/bin/fish
-    # Disable fingerprint auth (sensor not reachable with lid closed)
+    # Stop fprintd service (sensor not reachable with lid closed)
     ${fingerprintCtl}/bin/fingerprint-ctl disable
 
     # Check if on AC power
@@ -78,7 +80,7 @@ let
   lidOpenScript = pkgs.writeScript "lid-open" ''
     #!${pkgs.fish}/bin/fish
     hyprctl dispatch dpms on
-    # Re-enable fingerprint auth (sensor accessible again)
+    # Start fprintd service (sensor accessible again)
     ${fingerprintCtl}/bin/fingerprint-ctl enable
   '';
 in
@@ -86,7 +88,7 @@ in
   home.packages = [ fingerprintCtl ];
 
   wayland.windowManager.hyprland.settings = {
-    # Check lid state on startup (stateless - handles boot with lid closed)
+    # Sync fprintd state with lid on startup
     exec-once = [ "${fingerprintCtl}/bin/fingerprint-ctl auto" ];
 
     bindl = [

@@ -35,22 +35,44 @@ let
   '';
 
   # Helper to create IDE with plugins
-  mkIde = ide: plugins:
+  mkIde =
+    ide: plugins:
     let
       base = ide.override { inherit vmopts; };
     in
-    if plugins == [ ]
-    then base
-    else pkgs.jetbrains.plugins.addPlugins base plugins;
+    if plugins == [ ] then base else pkgs.jetbrains.plugins.addPlugins base plugins;
 
-  # Common plugins for all IDEs (add plugin IDs from JetBrains Marketplace)
+  # Resolve plugins from nix-jetbrains-plugins flake (for plugins not in nixpkgs)
+  flakePlugins =
+    ide: pluginIds: lib.attrValues (inputs.nix-jetbrains-plugins.lib.pluginsForIde pkgs ide pluginIds);
+
+  # Common plugins for all IDEs
   commonPlugins = [
-    # "com.intellij.plugins.watcher"  # File Watchers
+    "ideavim"
+    "vscode-keymap"
+    "github-copilot--your-ai-pair-programmer"
+    "catppuccin-theme"
+    "catppuccin-icons"
+  ];
+
+  # PHPStorm-specific plugins available in nixpkgs
+  phpstormPlugins = [
+    "symfony-plugin"
+    "php-annotations"
+  ];
+
+  # PHPStorm-specific plugins only available via flake (marketplace IDs)
+  phpstormFlakePlugins = [
+    "dev.blachut.svelte.lang"
+    "com.jetbrains.php.dql"
+    "de.espend.idea.php.toolbox"
   ];
 in
 {
   home.packages = [
-    (mkIde pkgs.jetbrains.phpstorm commonPlugins)
+    (mkIde pkgs.jetbrains.phpstorm (
+      commonPlugins ++ phpstormPlugins ++ flakePlugins pkgs.jetbrains.phpstorm phpstormFlakePlugins
+    ))
     (mkIde pkgs.jetbrains.pycharm commonPlugins)
   ];
 }

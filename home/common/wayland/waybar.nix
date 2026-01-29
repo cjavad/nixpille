@@ -20,7 +20,9 @@ in
   config = {
     # Disable Stylix waybar styling - use custom OLED-optimized CSS
     stylix.targets.waybar.enable = false;
-  } // (let
+  }
+  // (
+    let
       clockStateFile = "/tmp/waybar-clock-mode";
       submapIndicatorScript = pkgs.writeScript "submap-indicator" ''
         #!/usr/bin/env bash
@@ -84,7 +86,10 @@ in
             modules-left = [
               "hyprland/workspaces"
             ];
-            modules-center = [ "custom/submap-indicator" "clock" ];
+            modules-center = [
+              "custom/submap-indicator"
+              "clock"
+            ];
             modules-right = [
               "custom/nightlight"
               "custom/github"
@@ -261,6 +266,11 @@ in
 
         # OLED-optimized CSS (true black backgrounds)
         style = ''
+          * {
+            font-family: monospace;
+            font-size: 13px;
+          }
+
           /* OLED-optimized: True black backgrounds */
           window#waybar {
             background-color: transparent;
@@ -435,7 +445,10 @@ in
         '';
       };
 
-      # Disable blueman-applet tray icon (waybar has bluetooth module)
-      systemd.user.services.blueman-applet.Install.WantedBy = lib.mkForce [ ];
-    });
+      # Disable blueman StatusIcon plugin (waybar has bluetooth module)
+      dconf.settings."org/blueman/plugins/statusicon" = {
+        enabled = false;
+      };
+    }
+  );
 }

@@ -14,21 +14,22 @@
 
     # Extra packages available in Steam's FHS environment
     package = pkgs.steam.override {
-      extraPkgs = pkgs': with pkgs'; [
-        # Xorg libraries for gamescope/games
-        xorg.libXcursor
-        xorg.libXi
-        xorg.libXinerama
-        xorg.libXScrnSaver
-        # Audio/media
-        libpng
-        libpulseaudio
-        libvorbis
-        # Misc
-        stdenv.cc.cc.lib
-        libkrb5
-        keyutils
-      ];
+      extraPkgs =
+        pkgs': with pkgs'; [
+          # Xorg libraries for gamescope/games
+          xorg.libXcursor
+          xorg.libXi
+          xorg.libXinerama
+          xorg.libXScrnSaver
+          # Audio/media
+          libpng
+          libpulseaudio
+          libvorbis
+          # Misc
+          stdenv.cc.cc.lib
+          libkrb5
+          keyutils
+        ];
     };
   };
 
@@ -50,7 +51,7 @@
   # Gamescope - micro compositor for better fullscreen/upscaling
   programs.gamescope = {
     enable = true;
-    capSysNice = true;  # Allow nice level adjustments
+    capSysNice = true; # Allow nice level adjustments
   };
 
   # Gamemode uses nvidia-offload automatically
