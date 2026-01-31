@@ -39,7 +39,6 @@
   # Nautilus support (trash, network mounts, MTP, thumbnails)
   services.gvfs.enable = true;
   services.udisks2.enable = true;
-  environment.systemPackages = [ pkgs.file-roller ];
 
   # Fonts
   fonts.packages = with pkgs; [

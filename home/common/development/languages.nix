@@ -2,6 +2,8 @@
 
 {
   home.packages = with pkgs; [
+    gcc
+    gnumake
     rustup
     go
     gopls
@@ -11,6 +13,8 @@
     uv
     nodejs_22
     bun
+    nixd
+    nixfmt-rfc-style
   ];
 
   home.sessionVariables = {

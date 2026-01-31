@@ -1,5 +1,5 @@
 {
-  pkgs,
+  pkgs-unstable,
   inputs,
   lib,
   ...
@@ -34,45 +34,49 @@ let
     -XX:HeapDumpPath=$USER_HOME/java_error_in_jetbrains.hprof
   '';
 
+  # Resolve plugins from nix-jetbrains-plugins flake (marketplace IDs → derivations)
+  pluginsFor =
+    ide: pluginIds:
+    lib.attrValues (inputs.nix-jetbrains-plugins.lib.pluginsForIde pkgs-unstable ide pluginIds);
+
   # Helper to create IDE with plugins
   mkIde =
-    ide: plugins:
+    ide: pluginIds:
     let
       base = ide.override { inherit vmopts; };
+      plugins = pluginsFor ide pluginIds;
     in
-    if plugins == [ ] then base else pkgs.jetbrains.plugins.addPlugins base plugins;
-
-  # Resolve plugins from nix-jetbrains-plugins flake (for plugins not in nixpkgs)
-  flakePlugins =
-    ide: pluginIds: lib.attrValues (inputs.nix-jetbrains-plugins.lib.pluginsForIde pkgs ide pluginIds);
+    if pluginIds == [ ] then base else pkgs-unstable.jetbrains.plugins.addPlugins base plugins;
 
   # Common plugins for all IDEs
   commonPlugins = [
-    "ideavim"
-    "vscode-keymap"
-    "github-copilot--your-ai-pair-programmer"
-    "catppuccin-theme"
-    "catppuccin-icons"
+    "IdeaVIM"
+    "com.intellij.plugins.vscodekeymap"
+    "org.jetbrains.plugins.github"
+    "com.github.copilot"
+    "com.github.catppuccin.jetbrains"
+    "com.github.catppuccin.jetbrains_icons"
+    "nix-idea"
   ];
 
-  # PHPStorm-specific plugins available in nixpkgs
+  # PHPStorm-specific plugins
   phpstormPlugins = [
-    "symfony-plugin"
-    "php-annotations"
-  ];
-
-  # PHPStorm-specific plugins only available via flake (marketplace IDs)
-  phpstormFlakePlugins = [
     "dev.blachut.svelte.lang"
+    "fr.adrienbrault.idea.symfony2plugin"
+    "de.espend.idea.php.annotation"
     "com.jetbrains.php.dql"
     "de.espend.idea.php.toolbox"
+  ];
+
+  # CLion-specific plugins
+  clionPlugins = [
+    "com.jetbrains.rust"
   ];
 in
 {
   home.packages = [
-    (mkIde pkgs.jetbrains.phpstorm (
-      commonPlugins ++ phpstormPlugins ++ flakePlugins pkgs.jetbrains.phpstorm phpstormFlakePlugins
-    ))
-    (mkIde pkgs.jetbrains.pycharm commonPlugins)
+    (mkIde pkgs-unstable.jetbrains.phpstorm (commonPlugins ++ phpstormPlugins))
+    (mkIde pkgs-unstable.jetbrains.clion (commonPlugins ++ clionPlugins))
+    (mkIde pkgs-unstable.jetbrains.pycharm commonPlugins)
   ];
 }

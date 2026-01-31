@@ -24,6 +24,8 @@
 
   programs.fish.enable = true;
 
+  environment.systemPackages = [ pkgs.bitwarden-desktop ];
+
   # Home-manager config selected by hostname
   home-manager.users.javad = import "${flakeRoot}/home/javad/${config.networking.hostName}";
 

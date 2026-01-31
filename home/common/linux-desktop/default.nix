@@ -7,6 +7,7 @@
     ../hyprland
     ../terminals/kitty.nix
     ../browsers/zen.nix
+    ../browsers/helium.nix
     ../launchers/vicinae.nix
   ];
 }

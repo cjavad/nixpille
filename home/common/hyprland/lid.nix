@@ -57,20 +57,12 @@ let
     # Stop fprintd service (sensor not reachable with lid closed)
     ${fingerprintCtl}/bin/fingerprint-ctl disable
 
-    # Check if on AC power
+    # Monitor switching handled by kanshi (profiles match connected outputs)
+    # Only handle suspend: on battery with no external monitors
     set ac_online (cat /sys/class/power_supply/AC*/online 2>/dev/null; or cat /sys/class/power_supply/ACAD/online 2>/dev/null; or echo "0")
-
-    # Check for external monitors (any monitor besides eDP-1)
     set external_monitors (hyprctl monitors -j | ${pkgs.jq}/bin/jq '[.[] | select(.name != "eDP-1")] | length')
 
-    if test "$external_monitors" -gt 0
-      # External monitors connected - just disable internal display
-      hyprctl dispatch dpms off eDP-1
-    else if test "$ac_online" = "1"
-      # On AC power - DPMS off all monitors
-      hyprctl dispatch dpms off
-    else
-      # On battery - lock and suspend
+    if test "$external_monitors" -eq 0 -a "$ac_online" != "1"
       loginctl lock-session
       sleep 0.5
       systemctl suspend
@@ -79,7 +71,6 @@ let
 
   lidOpenScript = pkgs.writeScript "lid-open" ''
     #!${pkgs.fish}/bin/fish
-    hyprctl dispatch dpms on
     # Start fprintd service (sensor accessible again)
     ${fingerprintCtl}/bin/fingerprint-ctl enable
   '';

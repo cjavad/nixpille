@@ -1,4 +1,9 @@
-{ pkgs, pkgs-unstable, ... }:
+{
+  lib,
+  pkgs,
+  pkgs-unstable,
+  ...
+}:
 
 {
   programs.hyprland = {
@@ -8,10 +13,13 @@
     portalPackage = pkgs-unstable.xdg-desktop-portal-hyprland;
   };
 
+  # Upstream NixOS module hardcodes binPath to "Hyprland" instead of
+  # "start-hyprland", causing a startup warning. Override until fixed.
+  # https://github.com/NixOS/nixpkgs/issues/476375
+  programs.uwsm.waylandCompositors.hyprland.binPath =
+    lib.mkForce "/run/current-system/sw/bin/start-hyprland";
+
   environment.sessionVariables = {
-    XDG_CURRENT_DESKTOP = "Hyprland";
-    XDG_SESSION_TYPE = "wayland";
-    XDG_SESSION_DESKTOP = "Hyprland";
     MOZ_ENABLE_WAYLAND = "1";
     # Electron apps native Wayland
     NIXOS_OZONE_WL = "1";
@@ -21,6 +29,22 @@
   xdg.portal = {
     enable = true;
     extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+    config = {
+      common = {
+        default = [
+          "hyprland"
+          "gtk"
+        ];
+      };
+      hyprland = {
+        default = [
+          "hyprland"
+          "gtk"
+        ];
+        "org.freedesktop.impl.portal.ScreenCast" = [ "hyprland" ];
+        "org.freedesktop.impl.portal.Screenshot" = [ "hyprland" ];
+      };
+    };
   };
 
   security.pam.services.hyprlock = {
@@ -30,7 +54,7 @@
   systemd.user.services.hyprpolkitagent = {
     description = "Hyprland Polkit Authentication Agent";
     wantedBy = [ "graphical-session.target" ];
-    wants = [ "graphical-session.target" ];
+    partOf = [ "graphical-session.target" ];
     after = [ "graphical-session.target" ];
     serviceConfig = {
       Type = "simple";
@@ -53,7 +77,7 @@
   systemd.user.services.swayosd = {
     description = "SwayOSD LibInput Backend";
     wantedBy = [ "graphical-session.target" ];
-    wants = [ "graphical-session.target" ];
+    partOf = [ "graphical-session.target" ];
     after = [ "graphical-session.target" ];
     serviceConfig = {
       Type = "simple";

@@ -17,6 +17,10 @@
 
   programs.git = {
     enable = true;
+    signing = {
+      key = "F1FECA8D7F2F2861";
+      signByDefault = true;
+    };
     settings = {
       user.name = "Javad";
       user.email = "me@javad.sh";
@@ -35,16 +39,44 @@
       enable = true;
       defaultApplications = {
         # Zen browser for web
-        "text/html" = "zen.desktop";
-        "x-scheme-handler/http" = "zen.desktop";
-        "x-scheme-handler/https" = "zen.desktop";
-        "x-scheme-handler/about" = "zen.desktop";
-        "x-scheme-handler/unknown" = "zen.desktop";
-        "application/xhtml+xml" = "zen.desktop";
+        "text/html" = "zen-beta.desktop";
+        "x-scheme-handler/http" = "zen-beta.desktop";
+        "x-scheme-handler/https" = "zen-beta.desktop";
+        "x-scheme-handler/about" = "zen-beta.desktop";
+        "x-scheme-handler/unknown" = "zen-beta.desktop";
+        "application/xhtml+xml" = "zen-beta.desktop";
 
         # Nautilus for files/folders
         "inode/directory" = "org.gnome.Nautilus.desktop";
         "application/x-gnome-saved-search" = "org.gnome.Nautilus.desktop";
+
+        # Loupe for images
+        "image/png" = "org.gnome.Loupe.desktop";
+        "image/jpeg" = "org.gnome.Loupe.desktop";
+        "image/gif" = "org.gnome.Loupe.desktop";
+        "image/webp" = "org.gnome.Loupe.desktop";
+        "image/svg+xml" = "org.gnome.Loupe.desktop";
+        "image/bmp" = "org.gnome.Loupe.desktop";
+        "image/tiff" = "org.gnome.Loupe.desktop";
+        "image/avif" = "org.gnome.Loupe.desktop";
+        "image/heif" = "org.gnome.Loupe.desktop";
+
+        # mpv for video & audio
+        "video/mp4" = "mpv.desktop";
+        "video/x-matroska" = "mpv.desktop";
+        "video/webm" = "mpv.desktop";
+        "video/x-msvideo" = "mpv.desktop";
+        "video/quicktime" = "mpv.desktop";
+        "video/ogg" = "mpv.desktop";
+        "audio/mpeg" = "mpv.desktop";
+        "audio/ogg" = "mpv.desktop";
+        "audio/flac" = "mpv.desktop";
+        "audio/x-wav" = "mpv.desktop";
+
+        # Papers for documents
+        "application/pdf" = "org.gnome.Papers.desktop";
+        "application/epub+zip" = "org.gnome.Papers.desktop";
+        "image/vnd.djvu" = "org.gnome.Papers.desktop";
       };
     };
     # Proxy flake for `home-manager switch` without arguments
@@ -75,6 +107,5 @@
   home.packages = with pkgs; [
     home-manager
     gnupg
-    nautilus
   ];
 }

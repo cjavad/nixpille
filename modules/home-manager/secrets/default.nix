@@ -187,7 +187,7 @@ in
     # GPG agent with SSH support
     services.gpg-agent = lib.mkIf cfg.gpgAgent.enable {
       enable = true;
-      enableSshSupport = true;
+      enableSshSupport = false;
       pinentry.package = cfg.gpgAgent.pinentryPackage;
       defaultCacheTtl = cfg.gpgAgent.defaultCacheTtl;
       maxCacheTtl = cfg.gpgAgent.maxCacheTtl;
@@ -215,7 +215,7 @@ in
     ];
 
     home.sessionVariables = lib.mkIf cfg.sessionVariables.enable {
-      SSH_AUTH_SOCK = "$XDG_RUNTIME_DIR/gnupg/S.gpg-agent.ssh";
+      SSH_AUTH_SOCK = "$XDG_RUNTIME_DIR/gcr/ssh";
       SOPS_AGE_KEY_FILE = "$XDG_RUNTIME_DIR/sops/keys.txt";
       KUBECONFIG = "$XDG_RUNTIME_DIR/kube/config";
     };

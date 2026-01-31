@@ -19,7 +19,6 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
     nix-cachyos-kernel.url = "github:xddxdd/nix-cachyos-kernel/release";
-    firefox-addons.url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
     nix-flatpak.url = "github:gmodena/nix-flatpak";
     vicinae.url = "github:vicinaehq/vicinae";
 
@@ -44,8 +43,23 @@
     sunsetr.url = "github:psi4j/sunsetr";
     sunsetr.inputs.nixpkgs.follows = "nixpkgs";
 
-    zen-browser.url = "github:0xc000022070/zen-browser-flake";
-    zen-browser.inputs.home-manager.follows = "home-manager";
+    zen-browser = {
+      url = "github:0xc000022070/zen-browser-flake";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        home-manager.follows = "home-manager";
+      };
+    };
+
+    helium = {
+      url = "github:cjavad/nixpille-helium";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    firefox-addons = {
+      url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     nix-jetbrains-plugins.url = "github:nix-community/nix-jetbrains-plugins";
   };
@@ -107,6 +121,7 @@
 
       hmModules = [
         inputs.zen-browser.homeModules.beta
+        inputs.helium.homeModules.default
         inputs.sops-nix.homeManagerModules.sops
         ./modules/desktop/stylix.nix
       ];
