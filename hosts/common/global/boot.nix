@@ -8,9 +8,11 @@
     loader.efi.canTouchEfiVariables = lib.mkDefault true;
     loader.grub.configurationLimit = lib.mkDefault 10;
     kernelPackages = pkgs.cachyosKernels.linuxPackages-cachyos-latest;
+    kernelModules = [ "msr" ];
     kernelParams = [
       "quiet"
       "splash"
+      "msr.allow_writes=off"
     ];
     kernel.sysctl = {
       "vm.swappiness" = 10;

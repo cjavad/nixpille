@@ -123,7 +123,6 @@
         inputs.zen-browser.homeModules.beta
         inputs.helium.homeModules.default
         inputs.sops-nix.homeManagerModules.sops
-        ./modules/desktop/stylix.nix
       ];
 
       mkHost =
@@ -154,6 +153,7 @@
           extraSpecialArgs = specialArgs;
           modules = hmModules ++ [
             inputs.stylix.homeModules.stylix
+            ./modules/desktop/stylix.nix
             ./home/${user}/${host}
           ];
         };

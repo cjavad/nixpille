@@ -1,4 +1,4 @@
-# Home configuration for ideapad (full desktop workstation)
+# Home configuration for ideapad
 { lib, ... }:
 
 {
@@ -14,9 +14,18 @@
   # Laptop: show battery in waybar
   custom.waybar.showBattery = true;
 
-  # IdeaPad display scaling
-  wayland.windowManager.hyprland.settings.monitor = lib.mkForce [
-    "eDP-1,preferred,auto,1.6"
-    ",preferred,auto,1"
-  ];
+  # Monitor configuration
+  custom.monitors = {
+    monitors.internal = {
+      connector = "eDP-1";
+      width = 2560;
+      height = 1440;
+      refreshRate = 120;
+      scale = 1.6;
+    };
+    groups.laptop = {
+      monitors = [ "internal" ];
+    };
+    defaultGroup = "laptop";
+  };
 }

@@ -5,11 +5,6 @@ vars:
   HOST:
     sh: 'h=$(hostname); case $h in ideapad|p1gen8|vm) echo $h;; *) echo vm;; esac'
 
-includes:
-  monitors:
-    taskfile: ./ops/monitors/Taskfile.yml
-    dir: .
-
 tasks:
   default:
     cmds:
