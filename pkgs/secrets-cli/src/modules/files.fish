@@ -9,7 +9,8 @@
 # Flow:
 #   pull:   BW -> keyring -> tmpfs + symlinks
 #   export: keyring -> tmpfs + symlinks (offline, runs on login)
-#   sync:   tmpfs -> keyring + BW
+#   save:   tmpfs -> keyring
+#   push:   keyring -> BW
 
 set -g SECRETS_STORE_DIR "$SECRETS_RUNTIME_DIR/secrets"
 
@@ -169,8 +170,57 @@ function files_export
     log_info "Exported $exported files to $SECRETS_STORE_DIR"
 end
 
+function files_save -a filename
+    # Save from tmpfs store -> keyring
+    # If filename provided, save just that file. Otherwise save all.
+    set -l manifest (keyring_get_file "_manifest")
+    if test -z "$manifest"
+        log_error "No manifest in keyring"
+        log_info "Run 'secrets pull' first to populate keyring"
+        return 1
+    end
+
+    _ensure_store
+
+    if test -n "$filename"
+        # Single file save
+        set -l store_path $SECRETS_STORE_DIR/$filename
+        if not test -f $store_path
+            log_error "File not found in store: $store_path"
+            return 1
+        end
+
+        # Verify file is in manifest
+        set -l dest (printf '%s' "$manifest" | jq -r --arg f "$filename" '.[$f] // empty')
+        if test -z "$dest"
+            log_error "File not in manifest: $filename"
+            return 1
+        end
+
+        cat $store_path | keyring_store_file $filename
+        item_ok $filename "saved to keyring"
+        return 0
+    end
+
+    # Save all files
+    set -l saved 0
+    for f in (printf '%s' "$manifest" | jq -r 'keys[]')
+        set -l store_path $SECRETS_STORE_DIR/$f
+        if not test -f $store_path
+            item_skip $f "not in store"
+            continue
+        end
+
+        cat $store_path | keyring_store_file $f
+        item_ok $f "saved to keyring"
+        set saved (math $saved + 1)
+    end
+
+    log_info "Saved $saved files to keyring"
+end
+
 function files_push -a filename
-    # Push from local -> BW
+    # Push from keyring -> BW
     # If filename provided, only push that file (fast)
     # Otherwise push all files (slow, full sync)
     bw_session || return 1
@@ -186,16 +236,11 @@ function files_push -a filename
 
     # Single file push (fast path)
     if test -n "$filename"
-        # Get content from store or keyring
-        set -l content ""
-        if test -f $SECRETS_STORE_DIR/$filename
-            set content (cat $SECRETS_STORE_DIR/$filename)
-        else
-            set content (keyring_get_file $filename)
-        end
+        set -l content (keyring_get_file $filename)
 
         if test -z "$content"
-            log_error "File not found in store or keyring: $filename"
+            log_error "File not found in keyring: $filename"
+            log_info "Run 'secrets files save $filename' first to save from store to keyring"
             return 1
         end
 
@@ -241,15 +286,10 @@ function files_push -a filename
     set -l tmpdir (mktemp -d -p $SECRETS_RUNTIME_DIR "push-XXXXXX")
 
     for f in (printf '%s' "$manifest" | jq -r 'keys[]')
-        set -l content ""
-        if test -f $SECRETS_STORE_DIR/$f
-            set content (cat $SECRETS_STORE_DIR/$f)
-        else
-            set content (keyring_get_file $f)
-        end
+        set -l content (keyring_get_file $f)
 
         if test -z "$content"
-            item_fail $f "not in store or keyring"
+            item_fail $f "not in keyring"
             continue
         end
 
@@ -270,7 +310,7 @@ function files_push -a filename
     rmdir $tmpdir 2>/dev/null
     _manifest_set $item_id "$manifest"
     bw_sync
-    log_info "Synced $synced files (local -> BW)"
+    log_info "Pushed $synced files (keyring -> BW)"
 end
 
 function files_add -a src dest

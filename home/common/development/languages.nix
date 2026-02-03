@@ -11,6 +11,7 @@
     golangci-lint
     python313
     uv
+    ruff
     nodejs_22
     bun
     nixd

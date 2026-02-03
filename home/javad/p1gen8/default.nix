@@ -44,6 +44,7 @@
           "dell-middle"
           "dell-left"
         ];
+        overrides.internal.scale = 2.0;
       };
       laptop = {
         monitors = [ "internal" ];
