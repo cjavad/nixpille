@@ -1,4 +1,4 @@
-{ ... }:
+{ pkgs, ... }:
 
 {
   hardware.enableRedistributableFirmware = true;
@@ -31,8 +31,19 @@
       # Intel HWP dynamic boost
       CPU_HWP_DYN_BOOST_ON_AC = 1;
       CPU_HWP_DYN_BOOST_ON_BAT = 0;
+
+      # Performance scaling range
+      CPU_MIN_PERF_ON_AC = 50;
+      CPU_MAX_PERF_ON_AC = 100;
+      CPU_MIN_PERF_ON_BAT = 0;
+      CPU_MAX_PERF_ON_BAT = 80;
+
+      # Intel GPU frequency (for iGPU)
+      INTEL_GPU_MIN_FREQ_ON_AC = 300;
+      INTEL_GPU_MAX_FREQ_ON_AC = 2300;
     };
   };
+
   services.upower.enable = true;
   services.fwupd.enable = true;
 

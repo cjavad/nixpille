@@ -277,9 +277,9 @@ in
           }
 
           window#waybar > box {
-            background-color: rgba(0, 0, 0, 0.95);
+            background-color: #000000;
             border-radius: 8px;
-            border: 1px solid rgba(30, 30, 46, 0.3);
+            border: none;
             padding: 0 6px;
           }
 

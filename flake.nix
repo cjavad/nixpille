@@ -17,6 +17,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs-master.url = "github:NixOS/nixpkgs/master";
     flake-parts.url = "github:hercules-ci/flake-parts";
     nix-cachyos-kernel.url = "github:xddxdd/nix-cachyos-kernel/release";
     nix-flatpak.url = "github:gmodena/nix-flatpak";
@@ -114,8 +115,13 @@
         config.allowUnfree = true;
       };
 
+      pkgs-master = import inputs.nixpkgs-master {
+        inherit system;
+        config.allowUnfree = true;
+      };
+
       specialArgs = {
-        inherit inputs pkgs-unstable;
+        inherit inputs pkgs-unstable pkgs-master;
         flakeRoot = ./.;
       };
 

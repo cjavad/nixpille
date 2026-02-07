@@ -13,8 +13,8 @@
       set -gx XCURSOR_THEME 'capitaine-cursors'
       set -gx XCURSOR_SIZE 24
 
-      # Bun
-      set -gx BUN_INSTALL "$HOME/.bun"
+      # Basic functions
+      function spawn; $argv > /dev/null 2>&1 &; disown; end
     '';
 
     interactiveShellInit = ''

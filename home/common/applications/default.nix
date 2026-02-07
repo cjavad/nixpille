@@ -6,5 +6,6 @@
     ./nixos-config.nix
     ./jetbrains.nix
     ./media.nix
+    ./power-tools.nix
   ];
 }

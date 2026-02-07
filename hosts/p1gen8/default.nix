@@ -13,6 +13,7 @@
     ../common/optional/fingerprint.nix
     ../common/optional/github-token.nix
     ../common/optional/gaming.nix
+    ../common/optional/pcscd.nix
     ../common/users/javad.nix
   ];
 
