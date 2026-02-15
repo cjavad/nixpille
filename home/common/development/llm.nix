@@ -1,8 +1,8 @@
-{ pkgs-unstable, pkgs-master, ... }:
+{ llm-agents, ... }:
 
 {
   home.packages = [
-    pkgs-master.claude-code
-    pkgs-unstable.codex
+    llm-agents.claude-code
+    llm-agents.codex
   ];
 }

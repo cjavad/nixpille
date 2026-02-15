@@ -3,8 +3,9 @@
 {
   home.packages = with pkgs; [
     kubectl
+    clusterctl
     krew
-    helm
+    kubernetes-helm
     helmfile
     kustomize
     k9s

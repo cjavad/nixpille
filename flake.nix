@@ -6,19 +6,21 @@
       "https://nix-community.cachix.org"
       "https://vicinae.cachix.org"
       "https://attic.xuyh0120.win/lantian"
+      "https://cache.numtide.com"
     ];
     extra-trusted-public-keys = [
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
       "vicinae.cachix.org-1:1kDrfienkGHPYbkpNj1mWTr7Fm1+zcenzgTizIcI3oc="
       "lantian:EeAUQ+W+6r7EtwnmYjeVwx5kOGEBpjlBfPlzGlTNvHc="
+      "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
     ];
   };
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nixpkgs-master.url = "github:NixOS/nixpkgs/master";
     flake-parts.url = "github:hercules-ci/flake-parts";
+    llm-agents.url = "github:numtide/llm-agents.nix";
     nix-cachyos-kernel.url = "github:xddxdd/nix-cachyos-kernel/release";
     nix-flatpak.url = "github:gmodena/nix-flatpak";
     vicinae.url = "github:vicinaehq/vicinae";
@@ -54,6 +56,11 @@
 
     helium = {
       url = "github:cjavad/nixpille-helium";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    obsidian-plugins = {
+      url = "github:cjavad/nixpille-obsidian-community-plugins";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -99,6 +106,7 @@
         [
           (final: _: { custom = import ./pkgs { pkgs = final; }; })
           inputs.nix-cachyos-kernel.overlays.pinned
+          inputs.obsidian-plugins.overlays.default
         ]
         ++ lib.optional (hasNvidia host) (import ./overlays/nvidia.nix);
 
@@ -115,13 +123,10 @@
         config.allowUnfree = true;
       };
 
-      pkgs-master = import inputs.nixpkgs-master {
-        inherit system;
-        config.allowUnfree = true;
-      };
+      llm-agents = inputs.llm-agents.packages.${system};
 
       specialArgs = {
-        inherit inputs pkgs-unstable pkgs-master;
+        inherit inputs pkgs-unstable llm-agents;
         flakeRoot = ./.;
       };
 

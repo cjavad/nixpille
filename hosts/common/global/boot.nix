@@ -8,7 +8,10 @@
     loader.efi.canTouchEfiVariables = lib.mkDefault true;
     loader.grub.configurationLimit = lib.mkDefault 10;
     kernelPackages = pkgs.cachyosKernels.linuxPackages-cachyos-latest;
-    kernelModules = [ "msr" ];
+    kernelModules = [
+      "msr"
+      "hid-logitech-dj"
+    ];
     kernelParams = [
       "quiet"
       "splash"
