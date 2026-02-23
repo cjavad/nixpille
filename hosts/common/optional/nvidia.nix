@@ -1,14 +1,17 @@
-{ config, inputs, ... }:
+{ config, inputs, lib, ... }:
 
 let
-  localPatchDir = "${inputs.self}/patches/nvidia";
-  localPatches =
-    if builtins.pathExists localPatchDir then
+  kernelVersion = config.boot.kernelPackages.kernel.version;
+  majorMinor = lib.versions.majorMinor kernelVersion;
+
+  patchDir = "${inputs.cachyos-kernel-patches}/${majorMinor}/misc/nvidia";
+  cachyosPatches =
+    if builtins.pathExists patchDir then
       let
-        files = builtins.attrNames (builtins.readDir localPatchDir);
+        files = builtins.attrNames (builtins.readDir patchDir);
         patchFiles = builtins.filter (f: builtins.match ".*\\.patch" f != null) files;
       in
-      map (f: "${localPatchDir}/${f}") patchFiles
+      map (f: "${patchDir}/${f}") patchFiles
     else
       [ ];
 
@@ -24,7 +27,7 @@ in
     package = base.overrideAttrs (old: {
       passthru = old.passthru // {
         open = old.passthru.open.overrideAttrs (openOld: {
-          patches = openOld.patches ++ localPatches;
+          patches = openOld.patches ++ cachyosPatches;
         });
       };
     });

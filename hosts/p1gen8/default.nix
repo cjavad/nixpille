@@ -8,12 +8,14 @@
     ../common/optional/audio.nix
     ../common/optional/bluetooth.nix
     ../common/optional/nvidia.nix
+    ../common/optional/ollama.nix
     # ../common/optional/lanzaboote.nix  # TODO: fix rust-std build issue
     ../common/optional/podman.nix
     ../common/optional/fingerprint.nix
     ../common/optional/github-token.nix
     ../common/optional/gaming.nix
     ../common/optional/pcscd.nix
+    ../common/optional/rustdesk.nix
     ../common/users/javad.nix
   ];
 

@@ -70,6 +70,11 @@
     };
 
     nix-jetbrains-plugins.url = "github:nix-community/nix-jetbrains-plugins";
+
+    cachyos-kernel-patches = {
+      url = "github:CachyOS/kernel-patches";
+      flake = false;
+    };
   };
 
   outputs =

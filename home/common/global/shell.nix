@@ -12,9 +12,16 @@
       set -gx LESS '-g -i -M -R -S -w -X -z-4'
       set -gx XCURSOR_THEME 'capitaine-cursors'
       set -gx XCURSOR_SIZE 24
+      set -gx DOCKER_HOST "unix:///run/user/"(id -u)"/podman/podman.sock"
 
       # Basic functions
       function spawn; $argv > /dev/null 2>&1 &; disown; end
+      function blackout --description "Clears screen, hides cursor and prompts"
+          function fish_prompt; printf '\e[?25l'; end
+          function fish_right_prompt; end
+          function fish_mode_prompt; end
+          clear
+      end
     '';
 
     interactiveShellInit = ''

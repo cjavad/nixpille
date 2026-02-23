@@ -17,6 +17,7 @@
       "wheel"
       "video"
       "audio"
+      "podman"
     ];
     shell = pkgs.fish;
     initialPassword = lib.mkDefault "changeme";
@@ -24,7 +25,10 @@
 
   programs.fish.enable = true;
 
-  environment.systemPackages = [ pkgs.bitwarden-desktop ];
+  environment.systemPackages = [
+    pkgs.bitwarden-desktop
+    pkgs.gparted
+  ];
 
   # Home-manager config selected by hostname
   home-manager.users.javad = import "${flakeRoot}/home/javad/${config.networking.hostName}";
