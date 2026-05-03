@@ -24,6 +24,15 @@
     nvidiaBusId = "PCI:1:0:0"; # TODO: verify
   };
 
+  # Shut the laptop down before the battery reaches a deep-discharge state.
+  services.upower = {
+    usePercentageForPolicy = true;
+    percentageLow = 25;
+    percentageCritical = 12;
+    percentageAction = 7;
+    criticalPowerAction = "PowerOff";
+  };
+
   networking.hostName = "ideapad";
   system.stateVersion = "25.11";
 }

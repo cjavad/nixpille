@@ -57,6 +57,7 @@
   # Gamemode uses nvidia-offload automatically
   environment.sessionVariables = {
     GAMEMODERUNEXEC = "nvidia-offload";
+    __GL_MaxFramesAllowed = "1"; # Reduce NVIDIA pre-rendered frame queue for lower input lag
   };
 
   # Gaming-related packages

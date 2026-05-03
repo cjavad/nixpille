@@ -1,13 +1,13 @@
-{ pkgs, ... }:
+{ pkgs, pkgs-unstable, ... }:
 
 {
   programs.vscode = {
     enable = true;
-    package = pkgs.vscode;
+    package = pkgs-unstable.vscode;
   };
 
-  home.packages = with pkgs; [
-    zed-editor
+  home.packages = [
+    pkgs-unstable.zed-editor
   ];
 
   xdg.configFile."codebook/codebook.toml".text = ''

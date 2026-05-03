@@ -71,10 +71,13 @@
 
     nix-jetbrains-plugins.url = "github:nix-community/nix-jetbrains-plugins";
 
-    cachyos-kernel-patches = {
-      url = "github:CachyOS/kernel-patches";
-      flake = false;
+    nixpille-shell = {
+      url = "github:cjavad/nixpille-shell";
+      # Follow nixpkgs-unstable: GTK4 0.22 Rust bindings need rustc ≥ 1.92,
+      # which nixos-25.11 stable doesn't ship yet.
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
+
   };
 
   outputs =
@@ -119,7 +122,10 @@
         host:
         import nixpkgs {
           inherit system;
-          config.allowUnfree = true;
+          config = {
+            allowUnfree = true;
+            android_sdk.accept_license = true;
+          };
           overlays = overlaysFor host;
         };
 

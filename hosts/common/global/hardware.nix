@@ -61,6 +61,11 @@
     HandleLidSwitchDocked = "ignore";
   };
 
+  services.fstrim = {
+    enable = true;
+    interval = "weekly";
+  };
+
   services.btrfs.autoScrub = {
     enable = true;
     interval = "weekly";

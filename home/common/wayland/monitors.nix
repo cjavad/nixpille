@@ -30,7 +30,7 @@ let
   # Hyprland monitor line for a single entry
   mkMonitorLine =
     e:
-    "${monitorCriteria e.mon},${toString e.mon.width}x${toString e.mon.height}@${toString e.mon.refreshRate}Hz,${toString e.x}x0,${builtins.toJSON e.mon.scale}";
+    "${monitorCriteria e.mon},${toString e.mon.width}x${toString e.mon.height}@${builtins.toJSON e.mon.refreshRate}Hz,${toString e.x}x0,${builtins.toJSON e.mon.scale}";
 
   # Build ordered monitor entries with calculated x positions for any group
   mkGroupEntries =
@@ -181,7 +181,7 @@ in
               description = "Vertical resolution";
             };
             refreshRate = lib.mkOption {
-              type = lib.types.int;
+              type = lib.types.number;
               default = 60;
               description = "Refresh rate in Hz";
             };
@@ -232,6 +232,8 @@ in
       monitor = monitorLines;
       workspace = workspaceLines;
     };
-    home.packages = [ monitorsScript ];
+    # Fish-script `monitors` is the legacy runtime CLI. nixpille owns the
+    # name once it's enabled, so don't drop two competing binaries on PATH.
+    home.packages = lib.mkIf (!(config.custom.nixpille.enable or false)) [ monitorsScript ];
   };
 }

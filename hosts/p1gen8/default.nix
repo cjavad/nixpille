@@ -13,9 +13,12 @@
     ../common/optional/podman.nix
     ../common/optional/fingerprint.nix
     ../common/optional/github-token.nix
+    ../common/optional/android.nix
     ../common/optional/gaming.nix
     ../common/optional/pcscd.nix
+    ../common/optional/printing.nix
     ../common/optional/rustdesk.nix
+    ../common/optional/simplyprint-satis.nix
     ../common/users/javad.nix
   ];
 
@@ -31,6 +34,16 @@
   services.tlp.settings = {
     START_CHARGE_THRESH_BAT0 = 75;
     STOP_CHARGE_THRESH_BAT0 = 80;
+  };
+
+  # Match the desktop battery notifier thresholds so low power is visible
+  # before the machine reaches a dangerous discharge level.
+  services.upower = {
+    usePercentageForPolicy = true;
+    percentageLow = 25;
+    percentageCritical = 12;
+    percentageAction = 7;
+    criticalPowerAction = "PowerOff";
   };
 
   networking.hostName = "p1gen8";

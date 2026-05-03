@@ -1,4 +1,5 @@
 {
+  pkgs,
   pkgs-unstable,
   inputs,
   lib,
@@ -72,11 +73,39 @@ let
   clionPlugins = [
     "com.jetbrains.rust"
   ];
+
+  # Android Studio-specific plugins
+  androidStudioPlugins = [
+    "io.flutter"
+    "Dart"
+  ];
+
+  # Android Studio with plugins (FHS-wrapped, can't use addPlugins)
+  androidStudio = pkgs.android-studio.override { forceWayland = true; };
+
+  # Stub with pname/version for plugin index lookup (FHS wrapper strips these attrs)
+  androidStudioStub = {
+    pname = "android-studio";
+    version = pkgs.android-studio.version;
+  };
+
+  androidStudioPluginDrvs = inputs.nix-jetbrains-plugins.lib.pluginsForIde pkgs androidStudioStub (commonPlugins ++ androidStudioPlugins);
+
+  # Version without dots for the config path (2025.2.1.8 → AndroidStudio2025.2)
+  androidStudioConfigVersion = lib.concatStringsSep "." (lib.take 2 (lib.splitString "." pkgs.android-studio.version));
 in
 {
   home.packages = [
     (mkIde pkgs-unstable.jetbrains.phpstorm (commonPlugins ++ phpstormPlugins))
     (mkIde pkgs-unstable.jetbrains.clion (commonPlugins ++ clionPlugins))
     (mkIde pkgs-unstable.jetbrains.pycharm commonPlugins)
+    androidStudio
   ];
+
+  # Symlink each plugin into Android Studio's local plugin directory
+  home.file = lib.mapAttrs' (id: drv:
+    lib.nameValuePair
+      ".local/share/Google/AndroidStudio${androidStudioConfigVersion}/plugins/${id}"
+      { source = drv; recursive = true; }
+  ) androidStudioPluginDrvs;
 }

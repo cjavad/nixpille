@@ -9,7 +9,6 @@ let
     "noatime"
     "compress=zstd:1"
     "ssd"
-    "discard=async"
     "space_cache=v2"
   ];
 in

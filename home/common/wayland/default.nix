@@ -2,7 +2,9 @@
 {
   imports = [
     ./monitors.nix
+    ./nixpille.nix
     ./waybar.nix
     ./mako.nix
+    ./battery-alerts.nix
   ];
 }

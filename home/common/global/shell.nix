@@ -13,6 +13,7 @@
       set -gx XCURSOR_THEME 'capitaine-cursors'
       set -gx XCURSOR_SIZE 24
       set -gx DOCKER_HOST "unix:///run/user/"(id -u)"/podman/podman.sock"
+      set -gx CLAUDE_CODE_DISABLE_AUTO_MEMORY 1
 
       # Basic functions
       function spawn; $argv > /dev/null 2>&1 &; disown; end
@@ -40,6 +41,7 @@
       task = "go-task";
       ssh = "TERM=xterm-256color command ssh";
       nixos-task = "task -d /etc/nixos";
+      scrcpy = "scrcpy --render-driver=opengl";
     };
 
     plugins = [

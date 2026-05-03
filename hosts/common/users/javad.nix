@@ -18,6 +18,9 @@
       "video"
       "audio"
       "podman"
+      "adbusers"
+      "kvm"
+      "lp"
     ];
     shell = pkgs.fish;
     initialPassword = lib.mkDefault "changeme";
@@ -27,6 +30,7 @@
 
   environment.systemPackages = [
     pkgs.bitwarden-desktop
+    pkgs.file
     pkgs.gparted
   ];
 

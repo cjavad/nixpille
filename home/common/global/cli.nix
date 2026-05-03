@@ -1,5 +1,13 @@
-{ pkgs, ... }:
+{
+  pkgs,
+  pkgs-unstable ? pkgs,
+  ...
+}:
 
+let
+  # Work around nixpkgs Rust/toolchain skew for zellij in the pinned stable set.
+  zellijPkg = pkgs-unstable.zellij or pkgs.zellij;
+in
 {
   home.packages = with pkgs; [
     git
@@ -18,7 +26,7 @@
     htop
     btop
     fastfetch
-    zellij
+    zellijPkg
     go-task
     dive
     cloc
@@ -30,6 +38,7 @@
     cowsay
     lolcat
     mycli
+    pgcli
   ];
 
   programs.tmux = {
